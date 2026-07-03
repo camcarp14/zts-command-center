@@ -235,10 +235,80 @@ const PUBLISH_CHECKLIST = [
 // AGENT ENGINE — same two-speed design as Clarify: free heuristic heartbeat,
 // rare gated synthesis. ZTS-native watchers cover BOTH pillars (creators + studio).
 // ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// SEO — article pipeline with an approval gate. The agent drafts on a cadence
+// (or on demand); nothing publishes without passing your review. Phase 1 uses a
+// manual keyword panel (paste from Search Console); Phase 2 wires GSC OAuth.
+// ════════════════════════════════════════════════════════════════════════════
+const ARTICLE_STAGES = [
+  { key: "idea", label: "Idea", color: "#8A97A8" },
+  { key: "review", label: "In Review", color: "#F59E0B" },
+  { key: "approved", label: "Approved", color: "#3B82F6" },
+  { key: "published", label: "Published", color: "#0E9F6E" },
+];
+
+// ZTS's natural topic clusters — the agent seeds article ideas from these when
+// no keyword is supplied. These are the queries ZTS buyers actually search.
+const SEO_TOPIC_CLUSTERS = [
+  "metal seed phrase backup vs paper",
+  "how to back up a seed phrase safely",
+  "what happens to your bitcoin if an exchange collapses",
+  "hardware wallet backup best practices",
+  "bitcoin inheritance planning self custody",
+  "seed phrase storage mistakes that lose bitcoin",
+  "stainless steel crypto backup comparison",
+  "not your keys not your coins explained",
+];
+
+async function generateArticle({ keyword, notes, model = "claude-haiku-4-5-20251001" }) {
+  const system = `You are the SEO content lead for Zero To Secure. ${ZTS_BRAND}
+
+Write a search-optimized blog article. Rules: genuinely useful first, optimized second — no keyword stuffing. Write for a smart beginner-to-intermediate Bitcoin holder. Use the target keyword naturally in the title, first paragraph, and 1-2 H2s. Weave in ZTS product relevance without being an ad. Suggest internal links to: /products (the ZTS kit), /pages/breach-index (exchange hack history), /pages/academy (self-custody lessons).
+
+Respond ONLY with valid JSON, no preamble or markdown fences:
+{
+  "target_keyword": "the primary keyword",
+  "search_intent": "informational | commercial | transactional",
+  "title_tag": "under 60 chars, keyword near front",
+  "meta_description": "under 155 chars, compelling, includes keyword",
+  "slug": "url-slug-here",
+  "outline": ["H2: ...", "H2: ...", "H3: ..."],
+  "article_html": "the full article as clean HTML (h2/h3/p/ul/li/strong only), 1000-1400 words",
+  "internal_links": [{ "anchor": "anchor text", "target": "/pages/breach-index" }],
+  "word_count": 1200
+}`;
+  const userMsg = keyword
+    ? `Target keyword: ${keyword}${notes ? `\nNotes/angle: ${notes}` : ""}`
+    : `No keyword supplied — pick the strongest un-covered topic from ZTS's clusters: ${SEO_TOPIC_CLUSTERS.join("; ")}`;
+  const raw = await callClaude({ system, messages: [{ role: "user", content: userMsg }], model, maxTokens: 4000, fn: "generate_article" });
+  if (!raw) return null;
+  try { return JSON.parse(raw.replace(/```json|```/g, "").trim()); } catch { return null; }
+}
+
+// Publish to the Shopify blog. Deployed → Netlify function (holds the Admin token);
+// local → copies the HTML so you can paste into Shopify admin manually. Mirrors
+// the sendEmail/createMeeting graceful-degradation pattern.
+async function publishToShopify(article) {
+  const isDeployed = window.location.hostname !== "localhost";
+  if (isDeployed) {
+    const res = await fetch("/.netlify/functions/shopify-publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: article.title_tag, body_html: article.article_html, summary: article.meta_description, tags: article.target_keyword, handle: article.slug }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "Shopify publish failed");
+    return { method: "api", url: data.url || null };
+  }
+  try { await navigator.clipboard.writeText(article.article_html || ""); } catch {}
+  return { method: "clipboard" };
+}
+
 const ENGINE_DEFAULTS = {
   running: false, observeOnly: true, cadenceSec: 20, synthEveryMin: 30,
   hourlyCostCap: 0.25, pauseWhenIdle: true, idleMin: 10, allowSonnet: false,
-  agents: { creatorScout: true, production: true, cadence: true, reply: true, pattern: true, cost: true },
+  seoAutoDraft: false, seoEveryDays: 4,
+  agents: { creatorScout: true, production: true, cadence: true, reply: true, pattern: true, seoCadence: true, cost: true },
 };
 const eng = {
   get: () => ({ ...ENGINE_DEFAULTS, ...(sm.get("engine_ctrl") || {}), agents: { ...ENGINE_DEFAULTS.agents, ...((sm.get("engine_ctrl") || {}).agents || {}) } }),
@@ -299,6 +369,18 @@ const HEURISTIC_AGENTS = {
     if (top && !kb.seenToday("pattern", "type_mix")) out.push({ agent: "pattern", type: "learning", signal: "info", dedupKey: "type_mix", text: `Learning: ${SHORT_TYPES[top[0]]?.label || top[0]} is your most-produced Short type (${top[1]} posted). Watch which type actually drives ZTS clicks and lean in.` });
     return out;
   }},
+  seoCadence: { name: "SEO Cadence", scan: (ctx) => {
+    const out = [];
+    const inReview = ctx.articles.filter(a => a.stage === "review").length;
+    if (inReview >= 2 && !kb.seenToday("seoCadence", "review_backlog")) out.push({ agent: "seoCadence", type: "observation", signal: "warning", dedupKey: "review_backlog", text: `${inReview} articles are waiting in your SEO review queue. Approve or reject them so the cadence keeps moving.` });
+    const published = ctx.articles.filter(a => a.stage === "published" && a.published_at);
+    if (published.length > 0) {
+      const last = published.sort((a,b) => new Date(b.published_at) - new Date(a.published_at))[0];
+      const days = Math.floor((Date.now() - new Date(last.published_at).getTime()) / 86400000);
+      if (days >= 7 && !kb.seenToday("seoCadence", "publish_gap")) out.push({ agent: "seoCadence", type: "observation", signal: "info", dedupKey: "publish_gap", text: `${days} days since your last article published. Steady cadence compounds — check the review queue.` });
+    }
+    return out;
+  }},
   cost: { name: "Cost Sentinel", scan: (ctx) => {
     const out = [];
     const hourAgo = Date.now() - 3600000;
@@ -314,6 +396,7 @@ const AGENT_META = [
   { key: "cadence", name: "Cadence Monitor", role: "Posting consistency", watches: "Days since your last Short went live. Flags posting gaps because the algorithm rewards consistency.", cost: "Free heuristic" },
   { key: "reply", name: "Reply Sentinel", role: "Collab triage", watches: "Creator replies waiting on you. Raises a critical flag so warm collab interest never goes cold.", cost: "Free heuristic" },
   { key: "pattern", name: "Pattern Learner", role: "Content learning", watches: "Which Short types you produce most, building toward which ones actually drive ZTS conversions.", cost: "Free heuristic" },
+  { key: "seoCadence", name: "SEO Cadence", role: "Content pipeline", watches: "The article review queue and days since last publish. When auto-draft is on, it also queues a new draft for your approval on your cadence.", cost: "Free heuristic (draft = 1 gated call)" },
   { key: "cost", name: "Cost Sentinel", role: "Spend guardrail", watches: "AI generation spend over the last hour. Keeps the engine honest on token cost.", cost: "Free heuristic" },
   { key: "synthesizer", name: "Synthesizer", role: "Insight distillation", watches: "Accumulated observations from every agent. Occasionally distills them into one highest-leverage move across creators + studio. The only agent that spends tokens.", cost: "Haiku · gated" },
 ];
@@ -665,10 +748,11 @@ function AddCreatorModal({ onClose, onAdd }) {
   );
 }
 // ─── AGENT ENGINE (headless) ─────────────────────────────────────────────────
-function AgentEngine({ creators, shorts }) {
-  const cRef = useRef(creators), sRef = useRef(shorts);
+function AgentEngine({ creators, shorts, articles, onArticleDraft }) {
+  const cRef = useRef(creators), sRef = useRef(shorts), aRef = useRef(articles);
   useEffect(() => { cRef.current = creators; }, [creators]);
   useEffect(() => { sRef.current = shorts; }, [shorts]);
+  useEffect(() => { aRef.current = articles; }, [articles]);
   useEffect(() => {
     const onAct = () => markActivity();
     window.addEventListener("mousemove", onAct, { passive: true });
@@ -685,13 +769,31 @@ function AgentEngine({ creators, shorts }) {
       if (forced) sm.del("engine_force_pass");
       lastWork = now;
       sm.set("engine_pass_count", (sm.get("engine_pass_count") || 0) + 1);
-      const ctx = { creators: cRef.current || [], shorts: sRef.current || [], obsLogs: obs.getAll() };
+      const ctx = { creators: cRef.current || [], shorts: sRef.current || [], articles: aRef.current || [], obsLogs: obs.getAll() };
       let newObs = [];
       Object.entries(HEURISTIC_AGENTS).forEach(([k, a]) => { if (ctrl.agents[k] === false) return; try { newObs = newObs.concat(a.scan(ctx) || []); } catch {} });
       const added = kb.add(newObs);
       sm.set("engine_last_tick", now);
       if (added > 0) sm.set("engine_obs_since_synth", (sm.get("engine_obs_since_synth") || 0) + added);
       if (forced && added === 0) kb.add([{ agent: "system", type: "system", signal: "info", text: `Manual pass #${sm.get("engine_pass_count")} — scanned ${ctx.creators.length} creators + ${ctx.shorts.length} Shorts, nothing new to flag.` }]);
+      // ── SEO auto-draft: agent-initiated, approval-gated. Runs only when the
+      //    toggle is on, the cadence has elapsed, spend is allowed, and we're
+      //    under the cost cap. The draft lands in "In Review" — never published.
+      if (ctrl.seoAutoDraft && !ctrl.observeOnly && engineSpendThisHour() < ctrl.hourlyCostCap) {
+        const lastDraft = sm.get("seo_last_autodraft") || 0;
+        if (now - lastDraft > (ctrl.seoEveryDays || 4) * 86400000) {
+          sm.set("seo_last_autodraft", now); // set BEFORE the call so a slow call can't double-fire
+          const kws = (sm.get("seo_keywords") || "").split("\n").map(k => k.trim()).filter(Boolean);
+          const covered = new Set((aRef.current || []).map(a => (a.target_keyword || a.keyword || "").toLowerCase()));
+          const kw = kws.find(k => !covered.has(k.toLowerCase())) || null;
+          const pkg = await generateArticle({ keyword: kw });
+          if (pkg && onArticleDraft) {
+            onArticleDraft({ id: `a_${Date.now()}`, created_at: new Date().toISOString(), stage: "review", auto_drafted: true, keyword: kw, ...pkg });
+            kb.add([{ agent: "seoCadence", type: "observation", signal: "info", text: `Drafted a new article for review: "${pkg.title_tag}" (${pkg.target_keyword}). Approve or reject it in the SEO tab.` }]);
+          }
+        }
+      }
+
       if (ctrl.observeOnly) return;
       if ((sm.get("engine_obs_since_synth") || 0) < 3) return;
       if (now - (sm.get("engine_last_synth_ts") || 0) < ctrl.synthEveryMin * 60000) return;
@@ -778,6 +880,187 @@ function AgentsView() {
     </div>
   );
 }
+// ─── SEO VIEW — article pipeline with approval gate ──────────────────────────
+function SeoView({ articles, setArticles }) {
+  const [composing, setComposing] = useState(false);
+  const [openArticle, setOpenArticle] = useState(null);
+  const [keywords, setKeywords] = useState(() => sm.get("seo_keywords") || "");
+  const [autoDraft, setAutoDraft] = useState(() => eng.get().seoAutoDraft || false);
+  const [everyDays, setEveryDays] = useState(() => eng.get().seoEveryDays || 4);
+
+  const save = (next) => { setArticles(next); sm.set("articles", next); };
+  const update = (id, patch) => { const next = articles.map(a => a.id === id ? { ...a, ...patch } : a); save(next); if (openArticle?.id === id) setOpenArticle({ ...openArticle, ...patch }); };
+  const byStage = (k) => articles.filter(a => (a.stage || "idea") === k);
+  const lastAuto = sm.get("seo_last_autodraft");
+  const nextAuto = autoDraft && lastAuto ? new Date(lastAuto + everyDays * 86400000) : null;
+
+  return (
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>SEO</div>
+          <div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>The agent drafts search content on a cadence — nothing publishes without your approval.</div>
+        </div>
+        <Btn primary onClick={() => setComposing(true)}>✦ New Article</Btn>
+      </div>
+
+      {/* Auto-draft cadence + keyword panel */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "18px" }}>
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+            <Label>Auto-draft cadence</Label>
+            <div onClick={() => { const on = !autoDraft; setAutoDraft(on); eng.set({ seoAutoDraft: on }); }} style={{ width: "38px", height: "22px", borderRadius: "12px", background: autoDraft ? T.green : "rgba(15,23,42,0.12)", position: "relative", cursor: "pointer", transition: "background 0.15s" }}>
+              <div style={{ position: "absolute", top: "2px", left: autoDraft ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#FFF", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+            </div>
+          </div>
+          <div style={{ fontSize: "12px", color: T.sub, lineHeight: 1.5, marginBottom: "10px" }}>{autoDraft ? "The engine drafts a new article into In Review" : "Off — articles only generate when you click New Article"}{autoDraft && <> every <strong>{everyDays}</strong> days. It targets your keyword list first, then ZTS topic clusters.</>}</div>
+          {autoDraft && (
+            <>
+              <input type="range" min="2" max="7" step="1" value={everyDays} onChange={e => { const v = Number(e.target.value); setEveryDays(v); eng.set({ seoEveryDays: v }); }} style={{ width: "100%", accentColor: T.green }} />
+              <div style={{ fontSize: "10px", color: T.faint, marginTop: "6px" }}>{everyDays <= 3 ? "≈ twice a week" : "≈ once a week"}{nextAuto ? ` · next draft ~${nextAuto.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}` : " · first draft on next engine pass"}</div>
+            </>
+          )}
+        </Card>
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+            <Label>Target keywords</Label>
+            <span style={{ fontSize: "9px", color: T.faint, fontWeight: 600 }}>paste from Search Console — GSC sync coming in phase 2</span>
+          </div>
+          <textarea value={keywords} onChange={e => { setKeywords(e.target.value); sm.set("seo_keywords", e.target.value); }} placeholder={"one keyword per line, e.g.\nmetal seed phrase backup\nbitcoin inheritance planning"} style={{ width: "100%", minHeight: "76px", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "12px", color: T.ink, resize: "vertical", lineHeight: 1.6, fontFamily: mono }} />
+        </Card>
+      </div>
+
+      {/* Pipeline board */}
+      {articles.length === 0 ? (
+        <Card style={{ textAlign: "center", padding: "48px 24px" }}>
+          <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "8px" }}>No articles yet</div>
+          <div style={{ fontSize: "13px", color: T.faint, marginBottom: "18px" }}>Generate your first SEO article, or flip on auto-draft and let the agent queue them for your review.</div>
+          <Btn primary onClick={() => setComposing(true)}>✦ Draft the first article</Btn>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", alignItems: "start" }}>
+          {ARTICLE_STAGES.map(stage => {
+            const items = byStage(stage.key);
+            return (
+              <div key={stage.key}>
+                <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "10px", padding: "0 2px" }}>
+                  <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: stage.color }} />
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{stage.label}</span>
+                  <span style={{ fontSize: "11px", color: T.faint, fontFamily: mono }}>{items.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {items.map(a => (
+                    <Card key={a.id} hover onClick={() => setOpenArticle(a)} style={{ padding: "12px 13px", borderLeft: `3px solid ${stage.color}` }}>
+                      {a.auto_drafted && <div style={{ display: "inline-block", fontSize: "8px", fontWeight: 700, color: T.greenDeep, background: "rgba(14,159,110,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>Agent draft</div>}
+                      <div style={{ fontSize: "12px", fontWeight: 600, color: T.ink, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.title_tag || a.keyword || "Untitled"}</div>
+                      {a.target_keyword && <div style={{ fontSize: "10px", color: T.faint, marginTop: "4px", fontFamily: mono }}>{a.target_keyword}{a.word_count ? ` · ${a.word_count}w` : ""}</div>}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {composing && <ComposeArticleModal keywords={keywords} onClose={() => setComposing(false)} onCreate={(a) => { save([{ id: `a_${Date.now()}`, created_at: new Date().toISOString(), ...a }, ...articles]); setComposing(false); }} />}
+      {openArticle && <ArticleDetail article={openArticle} onClose={() => setOpenArticle(null)} onUpdate={update} onDelete={(id) => { save(articles.filter(a => a.id !== id)); setOpenArticle(null); }} />}
+    </div>
+  );
+}
+
+function ComposeArticleModal({ keywords, onClose, onCreate }) {
+  const kwList = (keywords || "").split("\n").map(k => k.trim()).filter(Boolean);
+  const [keyword, setKeyword] = useState(kwList[0] || "");
+  const [notes, setNotes] = useState("");
+  const [gen, setGen] = useState(false);
+  const create = async () => {
+    setGen(true);
+    const pkg = await generateArticle({ keyword, notes });
+    setGen(false);
+    if (pkg) onCreate({ keyword, stage: "review", ...pkg });
+    else onCreate({ keyword, stage: "idea" });
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", padding: "26px 28px", width: "520px", maxWidth: "94vw", boxShadow: "0 32px 80px rgba(11,17,32,0.24)" }}>
+        <div style={{ fontSize: "16px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "4px" }}>New Article</div>
+        <div style={{ fontSize: "12px", color: T.faint, marginBottom: "18px" }}>Claude drafts the full package — title tag, meta, outline, article, internal links — into your review queue.</div>
+        <Label style={{ marginBottom: "8px" }}>Target keyword</Label>
+        {kwList.length > 0 ? (
+          <select value={keyword} onChange={e => setKeyword(e.target.value)} style={{ width: "100%", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, background: "#FFF", marginBottom: "14px" }}>
+            {kwList.map((k, i) => <option key={i} value={k}>{k}</option>)}
+            <option value="">— let the agent pick from ZTS clusters —</option>
+          </select>
+        ) : (
+          <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="e.g. metal seed phrase backup (blank = agent picks)" style={{ width: "100%", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, marginBottom: "14px" }} />
+        )}
+        <Label style={{ marginBottom: "8px" }}>Angle / notes (optional)</Label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. compare against paper backups, mention the FTX collapse" style={{ width: "100%", minHeight: "60px", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, resize: "vertical" }} />
+        <div style={{ display: "flex", gap: "8px", marginTop: "18px" }}>
+          <Btn primary onClick={create} disabled={gen} style={{ flex: 1, padding: "12px" }}>{gen ? "Drafting (~30s)…" : "✦ Generate article"}</Btn>
+          <Btn onClick={onClose} style={{ padding: "12px 18px" }}>Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArticleDetail({ article, onClose, onUpdate, onDelete }) {
+  const [publishing, setPublishing] = useState(false);
+  const [pubResult, setPubResult] = useState(null);
+  const stage = article.stage || "idea";
+  const approve = () => onUpdate(article.id, { stage: "approved", approved_at: new Date().toISOString() });
+  const reject = () => onUpdate(article.id, { stage: "idea", rejected: true });
+  const publish = async () => {
+    setPublishing(true);
+    try {
+      const res = await publishToShopify(article);
+      setPubResult(res);
+      onUpdate(article.id, { stage: "published", published_at: new Date().toISOString(), published_url: res.url || null });
+    } catch (e) { setPubResult({ error: e.message }); }
+    setPublishing(false);
+  };
+  const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6 };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", width: "720px", maxWidth: "95vw", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(11,17,32,0.24)", overflow: "hidden" }}>
+        <div style={{ padding: "18px 24px", borderBottom: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 7px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{stage}{article.auto_drafted ? " · agent draft" : ""}</div>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{article.title_tag || article.keyword || "Untitled"}</div>
+            {article.target_keyword && <div style={{ fontSize: "11px", color: T.faint, marginTop: "3px", fontFamily: mono }}>{article.target_keyword} · {article.search_intent || "—"} · {article.word_count || "?"} words</div>}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+        </div>
+        <div style={{ padding: "18px 24px", overflowY: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+            <div><Label style={{ marginBottom: "6px" }}>Title tag</Label><div style={box}>{article.title_tag || "—"}</div></div>
+            <div><Label style={{ marginBottom: "6px" }}>Slug</Label><div style={{ ...box, fontFamily: mono, fontSize: "12px" }}>/{article.slug || "—"}</div></div>
+          </div>
+          <Label style={{ marginBottom: "6px" }}>Meta description</Label>
+          <div style={{ ...box, marginBottom: "16px" }}>{article.meta_description || "—"}</div>
+          {(article.internal_links || []).length > 0 && (<>
+            <Label style={{ marginBottom: "6px" }}>Internal links</Label>
+            <div style={{ ...box, marginBottom: "16px" }}>{article.internal_links.map((l, i) => <div key={i} style={{ fontSize: "12px" }}>"{l.anchor}" → <span style={{ fontFamily: mono, color: T.greenDeep }}>{l.target}</span></div>)}</div>
+          </>)}
+          <Label style={{ marginBottom: "6px" }}>Article</Label>
+          <div style={{ ...box, maxHeight: "320px", overflowY: "auto" }} dangerouslySetInnerHTML={{ __html: article.article_html || "<em>No draft yet.</em>" }} />
+          {pubResult && <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "9px", fontSize: "12px", background: pubResult.error ? "rgba(220,38,38,0.07)" : "rgba(14,159,110,0.07)", color: pubResult.error ? T.red : T.greenDeep, border: `1px solid ${pubResult.error ? "rgba(220,38,38,0.2)" : "rgba(14,159,110,0.25)"}` }}>{pubResult.error ? `Publish failed: ${pubResult.error}` : pubResult.method === "clipboard" ? "Local mode — article HTML copied to clipboard. Paste into Shopify admin → Blog posts → Add." : "Published to Shopify ✓"}</div>}
+        </div>
+        <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+          <button onClick={() => onDelete(article.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {stage === "review" && <><Btn onClick={reject}>✕ Reject</Btn><Btn primary onClick={approve}>✓ Approve</Btn></>}
+            {stage === "approved" && <Btn primary onClick={publish} disabled={publishing}>{publishing ? "Publishing…" : "🚀 Publish to Shopify"}</Btn>}
+            {stage === "published" && article.published_url && <a href={article.published_url} target="_blank" rel="noopener" style={{ fontSize: "12px", color: T.greenDeep, fontWeight: 700, textDecoration: "none", padding: "10px 16px" }}>View live ›</a>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MISSION — command center across both pillars ────────────────────────────
 function MissionView({ creators, shorts, onNavigate }) {
   const engCtrl = eng.get();
@@ -901,12 +1184,14 @@ export default function App() {
   const [view, setView] = useState("mission");
   const [creators, setCreators] = useState(() => sm.get("creators") || []);
   const [shorts, setShorts] = useState(() => sm.get("shorts") || []);
+  const [articles, setArticles] = useState(() => sm.get("articles") || []);
+  const addArticle = (a) => setArticles(prev => { const next = [a, ...prev]; sm.set("articles", next); return next; });
 
-  const TABS = ["mission", "creators", "studio", "agents", "ops"];
+  const TABS = ["mission", "creators", "studio", "seo", "agents", "ops"];
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <AgentEngine creators={creators} shorts={shorts} />
+      <AgentEngine creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
       <div style={{ borderBottom: `1px solid ${T.line}`, padding: "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
@@ -923,6 +1208,7 @@ export default function App() {
       {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} />}
       {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} />}
       {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} />}
+      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} />}
       {view === "agents" && <AgentsView />}
       {view === "ops" && <OpsView />}
     </div>
