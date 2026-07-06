@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
+import { supabase } from "./supabaseClient";
+import DOMPurify from "dompurify";
 
 // ════════════════════════════════════════════════════════════════════════════
 // ZERO TO SECURE — Creator outreach + Shorts production command center.
@@ -8,9 +10,13 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "rea
 // ════════════════════════════════════════════════════════════════════════════
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+// SUPABASE_URL/ANON_KEY used to be declared here but were never actually used
+// anywhere in this file — supabaseClient.js now owns that (same platform
+// pattern as Board Room and Clarify Outreach).
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+// Also declared-but-unused before this pass, and still unused: a real YouTube
+// Data API lookup (real subscriber counts instead of manual entry in Add
+// Creator) is a natural next step, not tackled in this pass.
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY || "";
 
 const MODEL_PRICING = {
@@ -494,10 +500,33 @@ function StudioView({ shorts, setShorts, isMobile }) {
   const [composing, setComposing] = useState(false);
   const [openShort, setOpenShort] = useState(null);
 
-  const save = (next) => { setShorts(next); sm.set("shorts", next); };
-  const addShort = (short) => { const s = { id: `s_${Date.now()}`, created_at: new Date().toISOString(), stage: "script", ...short }; save([s, ...shorts]); setComposing(false); setOpenShort(s); };
-  const updateShort = (id, patch) => { const next = shorts.map(s => s.id === id ? { ...s, ...patch } : s); save(next); if (openShort?.id === id) setOpenShort({ ...openShort, ...patch }); };
-  const delShort = (id) => { save(shorts.filter(s => s.id !== id)); setOpenShort(null); };
+  const addShort = async (short) => {
+    const fields = { stage: "script", ...short };
+    if (!supabase) {
+      const s = { id: `local_${Date.now()}`, created_at: new Date().toISOString(), ...fields };
+      setShorts(prev => [s, ...prev]); setComposing(false); setOpenShort(s);
+      return;
+    }
+    const { data, error: err } = await supabase.from("shorts").insert(fields).select();
+    if (err) { console.warn("[StudioView] insert failed:", err.message); setComposing(false); return; }
+    const s = data?.[0];
+    if (s) { setShorts(prev => [s, ...prev]); setOpenShort(s); }
+    setComposing(false);
+  };
+  const updateShort = async (id, patch) => {
+    setShorts(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s)); // optimistic
+    if (openShort?.id === id) setOpenShort(prev => ({ ...prev, ...patch }));
+    if (!supabase) return;
+    const { error: err } = await supabase.from("shorts").update(patch).eq("id", id);
+    if (err) console.warn("[StudioView] update failed:", err.message);
+  };
+  const delShort = async (id) => {
+    setShorts(prev => prev.filter(s => s.id !== id)); // optimistic
+    setOpenShort(null);
+    if (!supabase) return;
+    const { error: err } = await supabase.from("shorts").delete().eq("id", id);
+    if (err) console.warn("[StudioView] delete failed:", err.message);
+  };
 
   const byStage = (k) => shorts.filter(s => s.stage === k);
 
@@ -719,8 +748,12 @@ const CREATOR_STAGES = [
 function CreatorsView({ creators, setCreators, isMobile }) {
   const [adding, setAdding] = useState(false);
   const [sortBy, setSortBy] = useState("value");
-  const save = (next) => { setCreators(next); sm.set("creators", next); };
-  const move = (id, stage) => save(creators.map(c => c.id === id ? { ...c, stage, status: stage } : c));
+  const move = async (id, stage) => {
+    setCreators(prev => prev.map(c => c.id === id ? { ...c, stage, status: stage } : c)); // optimistic
+    if (!supabase) return;
+    const { error: err } = await supabase.from("creators").update({ stage, status: stage }).eq("id", id);
+    if (err) console.warn("[CreatorsView] stage update failed:", err.message);
+  };
 
   const sorted = [...creators].sort((a, b) => {
     if (sortBy === "value") return creatorValue(b).score - creatorValue(a).score;
@@ -794,7 +827,18 @@ function CreatorsView({ creators, setCreators, isMobile }) {
         </div>
       )}
 
-      {adding && <AddCreatorModal isMobile={isMobile} onClose={() => setAdding(false)} onAdd={(c) => { save([{ id: `c_${Date.now()}`, stage: "prospected", status: "prospected", created_at: new Date().toISOString(), ...c }, ...creators]); setAdding(false); }} />}
+      {adding && <AddCreatorModal isMobile={isMobile} onClose={() => setAdding(false)} onAdd={async (c) => {
+        const fields = { stage: "prospected", status: "prospected", ...c };
+        if (!supabase) {
+          setCreators(prev => [{ id: `local_${Date.now()}`, created_at: new Date().toISOString(), ...fields }, ...prev]);
+          setAdding(false);
+          return;
+        }
+        const { data, error: err } = await supabase.from("creators").insert(fields).select();
+        if (err) { console.warn("[AddCreatorModal] insert failed:", err.message); return; }
+        if (data?.[0]) setCreators(prev => [data[0], ...prev]);
+        setAdding(false);
+      }} />}
     </div>
   );
 }
@@ -957,15 +1001,20 @@ function AgentsView({ isMobile }) {
   );
 }
 // ─── SEO VIEW — article pipeline with approval gate ──────────────────────────
-function SeoView({ articles, setArticles, isMobile }) {
+function SeoView({ articles, setArticles, onAddArticle, isMobile }) {
   const [composing, setComposing] = useState(false);
   const [openArticle, setOpenArticle] = useState(null);
   const [keywords, setKeywords] = useState(() => sm.get("seo_keywords") || "");
   const [autoDraft, setAutoDraft] = useState(() => eng.get().seoAutoDraft || false);
   const [everyDays, setEveryDays] = useState(() => eng.get().seoEveryDays || 4);
 
-  const save = (next) => { setArticles(next); sm.set("articles", next); };
-  const update = (id, patch) => { const next = articles.map(a => a.id === id ? { ...a, ...patch } : a); save(next); if (openArticle?.id === id) setOpenArticle({ ...openArticle, ...patch }); };
+  const update = async (id, patch) => {
+    setArticles(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a)); // optimistic
+    if (openArticle?.id === id) setOpenArticle(prev => ({ ...prev, ...patch }));
+    if (!supabase) return;
+    const { error: err } = await supabase.from("articles").update(patch).eq("id", id);
+    if (err) console.warn("[SeoView] update failed:", err.message);
+  };
   const byStage = (k) => articles.filter(a => (a.stage || "idea") === k);
   const lastAuto = sm.get("seo_last_autodraft");
   const nextAuto = autoDraft && lastAuto ? new Date(lastAuto + everyDays * 86400000) : null;
@@ -1039,8 +1088,14 @@ function SeoView({ articles, setArticles, isMobile }) {
         </div>
       )}
 
-      {composing && <ComposeArticleModal keywords={keywords} isMobile={isMobile} onClose={() => setComposing(false)} onCreate={(a) => { save([{ id: `a_${Date.now()}`, created_at: new Date().toISOString(), ...a }, ...articles]); setComposing(false); }} />}
-      {openArticle && <ArticleDetail article={openArticle} isMobile={isMobile} onClose={() => setOpenArticle(null)} onUpdate={update} onDelete={(id) => { save(articles.filter(a => a.id !== id)); setOpenArticle(null); }} />}
+      {composing && <ComposeArticleModal keywords={keywords} isMobile={isMobile} onClose={() => setComposing(false)} onCreate={async (a) => { await onAddArticle(a); setComposing(false); }} />}
+      {openArticle && <ArticleDetail article={openArticle} isMobile={isMobile} onClose={() => setOpenArticle(null)} onUpdate={update} onDelete={async (id) => {
+        setArticles(prev => prev.filter(a => a.id !== id)); // optimistic
+        setOpenArticle(null);
+        if (!supabase) return;
+        const { error: err } = await supabase.from("articles").delete().eq("id", id);
+        if (err) console.warn("[SeoView] delete failed:", err.message);
+      }} />}
     </div>
   );
 }
@@ -1121,7 +1176,7 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
             <div style={{ ...box, marginBottom: "16px" }}>{article.internal_links.map((l, i) => <div key={i} style={{ fontSize: "12px" }}>"{l.anchor}" → <span style={{ fontFamily: mono, color: T.greenDeep }}>{l.target}</span></div>)}</div>
           </>)}
           <Label style={{ marginBottom: "6px" }}>Article</Label>
-          <div style={{ ...box, maxHeight: isMobile ? "44vh" : "320px", overflowY: "auto" }} dangerouslySetInnerHTML={{ __html: article.article_html || "<em>No draft yet.</em>" }} />
+          <div style={{ ...box, maxHeight: isMobile ? "44vh" : "320px", overflowY: "auto" }} dangerouslySetInnerHTML={{ __html: article.article_html ? DOMPurify.sanitize(article.article_html) : "<em>No draft yet.</em>" }} />
           {pubResult && <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "9px", fontSize: "12px", background: pubResult.error ? "rgba(220,38,38,0.07)" : "rgba(14,159,110,0.07)", color: pubResult.error ? T.red : T.greenDeep, border: `1px solid ${pubResult.error ? "rgba(220,38,38,0.2)" : "rgba(14,159,110,0.25)"}` }}>{pubResult.error ? `Publish failed: ${pubResult.error}` : pubResult.method === "clipboard" ? "Local mode — article HTML copied to clipboard. Paste into Shopify admin → Blog posts → Add." : "Published to Shopify ✓"}</div>}
         </div>
         <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
@@ -1227,7 +1282,7 @@ function OpsView({ isMobile }) {
     <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
         <div><div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>Observability</div><div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>Every Claude call — tokens, cost, latency, success.</div></div>
-        <div style={{ display: "flex", gap: "8px" }}><Btn primary onClick={testLog}>+ Test log</Btn><Btn onClick={() => setLogs(obs.getAll())}>↻ Refresh</Btn><Btn onClick={() => { obs.clear(); setLogs([]); }}>Clear</Btn></div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}><Btn primary onClick={testLog}>+ Test log</Btn><Btn onClick={() => setLogs(obs.getAll())}>↻ Refresh</Btn><Btn onClick={() => { obs.clear(); setLogs([]); }}>Clear</Btn><Btn onClick={() => supabase?.auth.signOut()}>Sign out</Btn></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? "10px" : "14px", marginBottom: "16px" }}>
         {[["Total Calls", logs.length], ["Est. Cost", `$${total.toFixed(3)}`], ["Success", logs.length ? `${Math.round(ok/logs.length*100)}%` : "—"], ["Avg Latency", logs.length ? `${Math.round(logs.reduce((s,l)=>s+(l.latencyMs||0),0)/logs.length)}ms` : "—"]].map(([l, v], i) => (
@@ -1264,16 +1319,125 @@ function OpsView({ isMobile }) {
 }
 
 // ─── APP SHELL ───────────────────────────────────────────────────────────────
+function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState("password");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [sent, setSent] = useState(false);
+  const inputStyle = { width: "100%", padding: "11px 13px", fontSize: 13, border: `1px solid ${T.line}`, borderRadius: 9, background: T.bg === "transparent" ? "#F8FAFC" : T.bg, color: T.ink, outline: "none", boxSizing: "border-box" };
+
+  if (!supabase) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, color: T.ink, background: "#F4F5F8" }}>
+        <div style={{ width: 380, maxWidth: "94vw", padding: "24px 26px", background: T.card, border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: T.cardShadow }}>
+          <div style={{ fontSize: 13, fontWeight: 700, fontFamily: syne, marginBottom: 8 }}>Supabase isn't configured yet</div>
+          <div style={{ fontSize: 12, color: T.sub, lineHeight: 1.6 }}>Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy — sign-in needs a real Supabase project to check against.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const signIn = async () => {
+    setBusy(true); setErr(null);
+    const { error: err0 } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (err0) setErr(err0.message);
+    setBusy(false);
+  };
+  const sendMagic = async () => {
+    setBusy(true); setErr(null);
+    const { error: err0 } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false, emailRedirectTo: window.location.origin } });
+    if (err0) setErr(err0.message); else setSent(true);
+    setBusy(false);
+  };
+  const disabled = busy || !email || (mode === "password" && !password);
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "#F4F5F8" }}>
+      <div style={{ width: 380, maxWidth: "94vw", padding: "30px 32px", background: T.card, border: `1px solid ${T.line}`, borderRadius: 18, boxShadow: "0 32px 80px rgba(15,23,42,0.24), 0 8px 24px rgba(15,23,42,0.14)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
+          <span style={{ width: 20, height: 20, borderRadius: 6, background: `linear-gradient(135deg, ${T.amberDeep} 0%, #A87C2E 100%)`, boxShadow: "0 2px 6px rgba(184,145,58,0.4)" }} />
+          <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne, color: T.ink }}>Zero To Secure</span>
+        </div>
+        <div style={{ fontSize: 12, color: T.faint, marginBottom: 22 }}>Sign in to the command center.</div>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="email" type="email" autoComplete="email"
+          style={{ ...inputStyle, marginBottom: 10 }} />
+        {mode === "password" && (
+          <input value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") signIn(); }} placeholder="password" type="password" autoComplete="current-password"
+            style={{ ...inputStyle, marginBottom: 10 }} />
+        )}
+        {err && <div style={{ fontSize: 11, color: T.red, marginBottom: 10 }}>{err}</div>}
+        {sent && <div style={{ fontSize: 11, color: T.green, marginBottom: 10 }}>Login link sent — check your email.</div>}
+        <button onClick={mode === "password" ? signIn : sendMagic} disabled={disabled}
+          style={{ width: "100%", padding: 12, fontSize: 12, fontWeight: 800, fontFamily: syne, borderRadius: 10, cursor: disabled ? "default" : "pointer", border: "none", background: disabled ? "rgba(15,23,42,0.06)" : `linear-gradient(135deg, ${T.amberDeep} 0%, #A87C2E 100%)`, color: disabled ? T.faint : "#1A1206" }}>
+          {busy ? (mode === "password" ? "Signing in…" : "Sending…") : (mode === "password" ? "Sign in" : "Email me a login link")}
+        </button>
+        <div onClick={() => { setMode(mode === "password" ? "magic" : "password"); setErr(null); setSent(false); }}
+          style={{ fontSize: 10, color: T.faint, textAlign: "center", marginTop: 12, cursor: "pointer" }}>
+          {mode === "password" ? "Use a magic link instead" : "Use a password instead"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   useGlobalStyles();
   const isMobile = useIsMobile();
   const [view, setView] = useState("mission");
-  const [creators, setCreators] = useState(() => sm.get("creators") || []);
-  const [shorts, setShorts] = useState(() => sm.get("shorts") || []);
-  const [articles, setArticles] = useState(() => sm.get("articles") || []);
-  const addArticle = (a) => setArticles(prev => { const next = [a, ...prev]; sm.set("articles", next); return next; });
+  const [creators, setCreators] = useState([]);
+  const [shorts, setShorts] = useState([]);
+  const [articles, setArticles] = useState([]);
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Auth gate — this app had none before. Same pattern as Board Room:
+  // check for an existing Supabase session on load, and keep listening for
+  // sign-in/sign-out. Nothing renders below until this resolves.
+  useEffect(() => {
+    if (!supabase) { setAuthChecked(true); return; } // unconfigured — see LoginScreen's own messaging
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session || null); setAuthChecked(true); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub?.subscription?.unsubscribe();
+  }, []);
+
+  // Load from Supabase on mount — replaces the old synchronous localStorage
+  // read. Waits for a real session first: querying before sign-in would
+  // just return empty results once RLS requires authentication anyway.
+  useEffect(() => {
+    if (!supabase || !session?.user) return;
+    (async () => {
+      const [{ data: cr, error: crErr }, { data: sh, error: shErr }, { data: ar, error: arErr }] = await Promise.all([
+        supabase.from("creators").select("*").order("created_at", { ascending: false }),
+        supabase.from("shorts").select("*").order("created_at", { ascending: false }),
+        supabase.from("articles").select("*").order("created_at", { ascending: false }),
+      ]);
+      if (crErr) console.warn("[App] creators load failed:", crErr.message);
+      if (shErr) console.warn("[App] shorts load failed:", shErr.message);
+      if (arErr) console.warn("[App] articles load failed:", arErr.message);
+      setCreators(cr || []);
+      setShorts(sh || []);
+      setArticles(ar || []);
+    })();
+  }, [session?.user?.id]);
+
+  const addArticle = async (a) => {
+    // Callers (e.g. the auto-draft cadence below) still build a client-side
+    // id/created_at out of habit from the old localStorage shape — strip them
+    // so Supabase generates its own UUID/timestamp instead of rejecting a
+    // non-UUID string in the id column.
+    const { id: _id, created_at: _ca, ...fields } = a;
+    if (!supabase) { setArticles(prev => [{ id: `local_${Date.now()}`, created_at: new Date().toISOString(), ...fields }, ...prev]); return; }
+    const { data, error: err } = await supabase.from("articles").insert(fields).select();
+    if (err) { console.warn("[addArticle] insert failed:", err.message); return; }
+    if (data?.[0]) setArticles(prev => [data[0], ...prev]);
+  };
 
   const TABS = ["mission", "creators", "studio", "seo", "agents", "ops"];
+
+  if (!authChecked) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontSize: 13, background: "#F4F5F8" }}>Loading…</div>;
+  if (!session) return <LoginScreen />;
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: isMobile ? "calc(60px + env(safe-area-inset-bottom))" : 0 }}>
@@ -1292,11 +1456,12 @@ export default function App() {
             </div>
           )}
         </div>
+        {!isMobile && <button onClick={() => supabase?.auth.signOut()} style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 7, color: T.sub, fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: syne }}>Sign out</button>}
       </div>
       {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} isMobile={isMobile} />}
       {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} />}
       {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} />}
-      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} isMobile={isMobile} />}
+      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} />}
       {view === "agents" && <AgentsView isMobile={isMobile} />}
       {view === "ops" && <OpsView isMobile={isMobile} />}
       {isMobile && <BottomNav view={view} setView={setView} tabs={TABS} />}
