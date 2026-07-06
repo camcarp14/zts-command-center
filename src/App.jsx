@@ -117,6 +117,18 @@ function useGlobalStyles() {
       @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
       @keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes slideup { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+      html { overflow-x: hidden; }
+      body { overflow-x: hidden; }
+      @media (hover: hover) and (pointer: fine) {
+        .zts-card-hover:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(15,23,42,0.06), 0 16px 40px rgba(15,23,42,0.08); }
+      }
+      @media (max-width: ${MOBILE_BP}px) {
+        input, select, textarea { font-size: 16px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      }
     `;
     document.head.appendChild(style);
   }, []);
@@ -135,16 +147,81 @@ const syne = "'Syne', system-ui";
 const mono = "'DM Mono', monospace";
 
 const Card = ({ children, style, onClick, hover }) => (
-  <div onClick={onClick}
-    onMouseEnter={hover ? (e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 8px rgba(15,23,42,0.06), 0 16px 40px rgba(15,23,42,0.08)"; } : undefined}
-    onMouseLeave={hover ? (e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = T.cardShadow; } : undefined}
-    style={{ background: T.card, borderRadius: "16px", border: `1px solid ${T.line}`, boxShadow: T.cardShadow, padding: "18px 20px", cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>
+  <div onClick={onClick} className={hover ? "zts-card-hover" : undefined}
+    style={{ background: T.card, borderRadius: "16px", border: `1px solid ${T.line}`, boxShadow: T.cardShadow, padding: "18px 20px", cursor: onClick ? "pointer" : "default", transition: hover ? "transform 0.15s ease, box-shadow 0.15s ease" : undefined, ...style }}>{children}</div>
 );
 const Label = ({ children, style }) => <div style={{ fontSize: "11px", fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: "0.13em", fontFamily: syne, ...style }}>{children}</div>;
 const Btn = ({ children, onClick, primary, disabled, style }) => (
   <button onClick={onClick} disabled={disabled}
     style={{ padding: "10px 18px", background: disabled ? "rgba(15,23,42,0.06)" : primary ? T.navyGrad : "transparent", border: primary ? "1px solid rgba(245,158,11,0.2)" : `1px solid ${T.line}`, borderRadius: "10px", color: disabled ? T.faint : primary ? "#FFFFFF" : T.sub, fontSize: "12px", fontWeight: 700, cursor: disabled ? "default" : "pointer", fontFamily: syne, letterSpacing: "0.02em", ...style }}>{children}</button>
 );
+
+// ─── Mobile retrofit — shared responsive helpers (desktop paths untouched) ───
+// Single breakpoint: phones only (largest phones ~430px, smallest tablets
+// ~768px — 680 sits in the gap so tablets/desktop windows are never caught).
+const MOBILE_BP = 680;
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" ? window.innerWidth <= MOBILE_BP : false);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BP);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isMobile;
+}
+const viewPad = (isMobile) => (isMobile ? "16px 16px 26px" : "24px 28px");
+// Kanban boards: unchanged grid on desktop; a horizontal scroll-snap rail on
+// mobile so every stage stays reachable with a swipe instead of collapsing.
+const kanbanWrapStyle = (isMobile, cols) => isMobile
+  ? { display: "flex", gap: "10px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollSnapType: "x proximity", paddingBottom: "6px" }
+  : { display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "12px", alignItems: "start" };
+const kanbanColStyle = (isMobile) => isMobile ? { minWidth: "80vw", maxWidth: "80vw", flexShrink: 0, scrollSnapAlign: "start" } : undefined;
+
+// Shared modal chrome: centered card on desktop (unchanged), bottom sheet on
+// mobile so it feels native instead of a floating box on a big screen.
+function ModalShell({ onClose, isMobile, width = 560, children }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", animation: `${isMobile ? "slideup" : "fadein"} 0.18s ease both` }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: isMobile ? "20px 20px 0 0" : "18px", width: isMobile ? "100%" : `${width}px`, maxWidth: isMobile ? "100%" : "94vw", maxHeight: isMobile ? "90vh" : "88vh", display: "flex", flexDirection: "column", boxShadow: isMobile ? "0 -12px 40px rgba(11,17,32,0.22)" : "0 32px 80px rgba(11,17,32,0.24)", overflow: "hidden" }}>
+        {isMobile && <div style={{ width: "36px", height: "4px", borderRadius: "3px", background: "rgba(15,23,42,0.16)", margin: "10px auto -4px", flexShrink: 0 }} />}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Bottom-nav icon set — plain geometry only (circles/lines/polygons), no
+// icon library dependency, matches the app's existing minimal glyph style.
+const TAB_ICONS = {
+  mission: (c) => <><polyline points="4,11 12,4.5 20,11" /><path d="M6 10 V19.5 H18 V10" /></>,
+  creators: (c) => <><circle cx="8.6" cy="7.8" r="2.5" /><polygon points="8.6,11.3 4.2,19 13,19" /><circle cx="16.6" cy="9.4" r="2.1" /><polygon points="16.6,12.4 13.3,19 19.9,19" /></>,
+  studio: (c) => <><rect x="3.5" y="5.5" width="17" height="13" rx="2" /><polygon points="10,9.3 10,14.7 15,12" fill={c} stroke="none" /></>,
+  seo: (c) => <><circle cx="10.3" cy="10.3" r="6" /><line x1="14.7" y1="14.7" x2="20" y2="20" /></>,
+  agents: (c) => <><circle cx="12" cy="5.5" r="2" /><circle cx="5.8" cy="17" r="2" /><circle cx="18.2" cy="17" r="2" /><line x1="12" y1="7.5" x2="7.2" y2="15.3" /><line x1="12" y1="7.5" x2="16.8" y2="15.3" /></>,
+  ops: (c) => <polyline points="3,13 7,13 9,19 13,6 15,13 21,13" />,
+};
+const TabIcon = ({ tab, color, size = 21 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    {TAB_ICONS[tab] ? TAB_ICONS[tab](color) : null}
+  </svg>
+);
+// Fixed bottom tab bar — replaces the top segmented control on mobile only.
+function BottomNav({ view, setView, tabs }) {
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", background: "rgba(248,249,251,0.94)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(15,23,42,0.05)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      {tabs.map(t => {
+        const active = view === t;
+        const color = active ? T.greenDeep : T.faint;
+        return (
+          <button key={t} onClick={() => setView(t)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3px", padding: "8px 2px 7px", background: "none", border: "none", cursor: "pointer" }}>
+            <TabIcon tab={t} color={color} />
+            <span style={{ fontSize: "9px", fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: syne }}>{t}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 // ════════════════════════════════════════════════════════════════════════════
 // STUDIO — Shorts production. Each Short moves: idea → script → assets → ready →
 // posted. Claude generates the assets live; the three Short types frame the angle.
@@ -413,7 +490,7 @@ async function synthesizeInsight(recentObs, allowSonnet) {
   return raw;
 }
 // ─── STUDIO VIEW — the Shorts production pillar ──────────────────────────────
-function StudioView({ shorts, setShorts }) {
+function StudioView({ shorts, setShorts, isMobile }) {
   const [composing, setComposing] = useState(false);
   const [openShort, setOpenShort] = useState(null);
 
@@ -425,7 +502,7 @@ function StudioView({ shorts, setShorts }) {
   const byStage = (k) => shorts.filter(s => s.stage === k);
 
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>Studio</div>
@@ -442,11 +519,11 @@ function StudioView({ shorts, setShorts }) {
           <Btn primary onClick={() => setComposing(true)}>✦ Create your first Short</Btn>
         </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", alignItems: "start" }}>
+        <div style={kanbanWrapStyle(isMobile, 5)}>
           {SHORT_STAGES.map(stage => {
             const items = byStage(stage.key);
             return (
-              <div key={stage.key}>
+              <div key={stage.key} style={kanbanColStyle(isMobile)}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "10px", padding: "0 2px" }}>
                   <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: stage.color }} />
                   <span style={{ fontSize: "11px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{stage.label}</span>
@@ -470,14 +547,14 @@ function StudioView({ shorts, setShorts }) {
         </div>
       )}
 
-      {composing && <ComposeModal onClose={() => setComposing(false)} onCreate={addShort} />}
-      {openShort && <ShortDetail short={openShort} onClose={() => setOpenShort(null)} onUpdate={updateShort} onDelete={delShort} />}
+      {composing && <ComposeModal isMobile={isMobile} onClose={() => setComposing(false)} onCreate={addShort} />}
+      {openShort && <ShortDetail short={openShort} isMobile={isMobile} onClose={() => setOpenShort(null)} onUpdate={updateShort} onDelete={delShort} />}
     </div>
   );
 }
 
 // Compose: pick type + topic, generate the full package.
-function ComposeModal({ onClose, onCreate }) {
+function ComposeModal({ onClose, onCreate, isMobile }) {
   const [type, setType] = useState("angle");
   const [topic, setTopic] = useState("");
   const [gen, setGen] = useState(false);
@@ -491,13 +568,13 @@ function ComposeModal({ onClose, onCreate }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", padding: "26px 28px", width: "560px", maxWidth: "94vw", boxShadow: "0 32px 80px rgba(11,17,32,0.24)" }}>
+    <ModalShell onClose={onClose} isMobile={isMobile} width={560}>
+      <div style={{ padding: isMobile ? "14px 18px calc(18px + env(safe-area-inset-bottom))" : "26px 28px", overflowY: "auto" }}>
         <div style={{ fontSize: "16px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "4px" }}>New Short</div>
         <div style={{ fontSize: "12px", color: T.faint, marginBottom: "20px" }}>Pick a type and topic — Claude drafts the hook, script, thumbnails, title, description, and tags.</div>
 
         <Label style={{ marginBottom: "8px" }}>Short type</Label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "18px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: "8px", marginBottom: "18px" }}>
           {Object.entries(SHORT_TYPES).map(([k, t]) => (
             <button key={k} onClick={() => setType(k)} style={{ textAlign: "left", padding: "12px 13px", background: type === k ? "rgba(14,159,110,0.07)" : "#F8FAFC", border: `1px solid ${type === k ? "rgba(14,159,110,0.35)" : T.line}`, borderRadius: "11px", cursor: "pointer" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: type === k ? T.greenDeep : T.ink, fontFamily: syne, marginBottom: "3px" }}>{t.label}</div>
@@ -516,11 +593,11 @@ function ComposeModal({ onClose, onCreate }) {
         </div>
         <div style={{ fontSize: "10px", color: T.faint, textAlign: "center", marginTop: "10px" }}>One Claude call drafts all assets. Runs on Haiku to stay cheap.</div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 // Short detail — view/edit/regenerate every asset, run the publish checklist, advance stage.
-function ShortDetail({ short, onClose, onUpdate, onDelete }) {
+function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
   const [regen, setRegen] = useState(null); // which asset is regenerating
   const [tab, setTab] = useState("assets");
   const t = SHORT_TYPES[short.type] || SHORT_TYPES.angle;
@@ -557,10 +634,10 @@ function ShortDetail({ short, onClose, onUpdate, onDelete }) {
   );
   const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" };
 
+  const hPad = isMobile ? "18px" : "24px";
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", width: "640px", maxWidth: "95vw", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(11,17,32,0.24)", overflow: "hidden" }}>
-        <div style={{ padding: "18px 24px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+    <ModalShell onClose={onClose} isMobile={isMobile} width={640}>
+        <div style={{ padding: `18px ${hPad}`, borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexShrink: 0 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 7px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{t.label} · {short.stage}</div>
             <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{short.title || short.topic || "Untitled Short"}</div>
@@ -568,13 +645,13 @@ function ShortDetail({ short, onClose, onUpdate, onDelete }) {
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
         </div>
 
-        <div style={{ display: "flex", gap: "4px", padding: "12px 24px 0" }}>
+        <div style={{ display: "flex", gap: "4px", padding: `12px ${hPad} 0`, flexShrink: 0 }}>
           {[["assets", "Assets"], ["publish", `Publish (${checkDone}/${PUBLISH_CHECKLIST.length})`]].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ padding: "7px 14px", background: tab === k ? "rgba(14,159,110,0.08)" : "transparent", border: "none", borderRadius: "8px", color: tab === k ? T.greenDeep : T.faint, fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: syne }}>{l}</button>
           ))}
         </div>
 
-        <div style={{ padding: "18px 24px", overflowY: "auto" }}>
+        <div style={{ padding: `18px ${hPad}`, overflowY: "auto" }}>
           {tab === "assets" ? (
             <>
               {!short.script && short.stage === "idea" ? (
@@ -621,15 +698,14 @@ function ShortDetail({ short, onClose, onUpdate, onDelete }) {
           )}
         </div>
 
-        <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+        <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
           <button onClick={() => onDelete(short.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
           <div style={{ display: "flex", gap: "8px" }}>
             <Btn onClick={copyAll}>Copy all</Btn>
-            {short.stage !== "posted" && <Btn primary onClick={advance}>{short.stage === "ready" ? "Mark posted →" : "Advance stage →"}</Btn>}
+            {short.stage !== "posted" && <Btn primary onClick={advance}>{short.stage === "ready" ? "Mark posted →" : isMobile ? "Advance →" : "Advance stage →"}</Btn>}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 // ─── CREATORS VIEW — outreach pipeline (YouTube creators) ────────────────────
@@ -640,7 +716,7 @@ const CREATOR_STAGES = [
   { key: "replied", label: "Replied", color: "#EC4899" },
   { key: "collab", label: "Collab", color: "#0E9F6E" },
 ];
-function CreatorsView({ creators, setCreators }) {
+function CreatorsView({ creators, setCreators, isMobile }) {
   const [adding, setAdding] = useState(false);
   const [sortBy, setSortBy] = useState("value");
   const save = (next) => { setCreators(next); sm.set("creators", next); };
@@ -655,7 +731,7 @@ function CreatorsView({ creators, setCreators }) {
   const totalReach = creators.filter(c => !["rejected"].includes(c.stage)).reduce((s, c) => s + creatorValue(c).score, 0);
 
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>Creators</div>
@@ -685,11 +761,11 @@ function CreatorsView({ creators, setCreators }) {
           <Btn primary onClick={() => setAdding(true)}>+ Add your first creator</Btn>
         </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", alignItems: "start" }}>
+        <div style={kanbanWrapStyle(isMobile, 5)}>
           {CREATOR_STAGES.map(stage => {
             const items = byStage(stage.key);
             return (
-              <div key={stage.key}>
+              <div key={stage.key} style={kanbanColStyle(isMobile)}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "10px", padding: "0 2px" }}>
                   <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: stage.color }} />
                   <span style={{ fontSize: "11px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{stage.label}</span>
@@ -718,20 +794,20 @@ function CreatorsView({ creators, setCreators }) {
         </div>
       )}
 
-      {adding && <AddCreatorModal onClose={() => setAdding(false)} onAdd={(c) => { save([{ id: `c_${Date.now()}`, stage: "prospected", status: "prospected", created_at: new Date().toISOString(), ...c }, ...creators]); setAdding(false); }} />}
+      {adding && <AddCreatorModal isMobile={isMobile} onClose={() => setAdding(false)} onAdd={(c) => { save([{ id: `c_${Date.now()}`, stage: "prospected", status: "prospected", created_at: new Date().toISOString(), ...c }, ...creators]); setAdding(false); }} />}
     </div>
   );
 }
 
-function AddCreatorModal({ onClose, onAdd }) {
+function AddCreatorModal({ onClose, onAdd, isMobile }) {
   const [f, setF] = useState({ channel_name: "", subscriber_count: "", niche: "", description: "", engagement_rate: "" });
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const submit = () => { if (!f.channel_name) return; onAdd({ ...f, subscriber_count: Number(f.subscriber_count) || 0, engagement_rate: f.engagement_rate ? Number(f.engagement_rate) / 100 : null }); };
   const v = f.channel_name ? creatorValue({ ...f, subscriber_count: Number(f.subscriber_count) || 0 }) : null;
   const input = { width: "100%", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, marginBottom: "10px" };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", padding: "26px 28px", width: "480px", maxWidth: "94vw", boxShadow: "0 32px 80px rgba(11,17,32,0.24)" }}>
+    <ModalShell onClose={onClose} isMobile={isMobile} width={480}>
+      <div style={{ padding: isMobile ? "14px 18px calc(18px + env(safe-area-inset-bottom))" : "26px 28px", overflowY: "auto" }}>
         <div style={{ fontSize: "16px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "18px" }}>Add Creator</div>
         <input placeholder="Channel name" value={f.channel_name} onChange={e => set("channel_name", e.target.value)} style={input} />
         <input placeholder="Subscriber count (e.g. 45000)" value={f.subscriber_count} onChange={e => set("subscriber_count", e.target.value)} style={input} />
@@ -744,7 +820,7 @@ function AddCreatorModal({ onClose, onAdd }) {
           <Btn onClick={onClose} style={{ padding: "11px 18px" }}>Cancel</Btn>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 // ─── AGENT ENGINE (headless) ─────────────────────────────────────────────────
@@ -811,7 +887,7 @@ function AgentEngine({ creators, shorts, articles, onArticleDraft }) {
 }
 
 // ─── AGENTS VIEW (control panel + feed) ──────────────────────────────────────
-function AgentsView() {
+function AgentsView({ isMobile }) {
   const [ctrl, setCtrl] = useState(() => eng.get());
   const [feed, setFeed] = useState(() => kb.all());
   const [passFlash, setPassFlash] = useState(false);
@@ -830,12 +906,12 @@ function AgentsView() {
   const agentMeta = [["creatorScout","Creator Scout","Prime-fit creators un-contacted"],["production","Production Watcher","Shorts stuck or unscheduled"],["cadence","Cadence Monitor","Posting gaps"],["reply","Reply Sentinel","Creator replies waiting"],["pattern","Pattern Learner","Which Short types you produce"],["cost","Cost Sentinel","AI spend guardrail"]];
 
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
       <div style={{ marginBottom: "20px" }}>
         <div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>Agent Engine</div>
         <div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>A living roster watching creators + studio on a free heartbeat, spending tokens only when it's worth it.</div>
       </div>
-      <div style={{ background: ctrl.running ? T.navyGrad : T.card, border: ctrl.running ? "none" : `1px solid ${T.line}`, borderRadius: "16px", padding: "18px 22px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", boxShadow: T.cardShadow }}>
+      <div style={{ background: ctrl.running ? T.navyGrad : T.card, border: ctrl.running ? "none" : `1px solid ${T.line}`, borderRadius: "16px", padding: isMobile ? "16px 18px" : "18px 22px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", boxShadow: T.cardShadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <button onClick={() => update({ running: !ctrl.running })} style={{ width: "52px", height: "52px", borderRadius: "50%", border: "none", background: ctrl.running ? T.green : T.navy, color: "#FFF", fontSize: "20px", cursor: "pointer", flexShrink: 0 }}>{ctrl.running ? "⏸" : "▶"}</button>
           <div>
@@ -848,7 +924,7 @@ function AgentsView() {
           <button onClick={runOnce} style={{ padding: "9px 14px", background: ctrl.running ? "rgba(255,255,255,0.1)" : "rgba(15,23,42,0.04)", border: ctrl.running ? "1px solid rgba(255,255,255,0.2)" : `1px solid ${T.line}`, borderRadius: "9px", color: ctrl.running ? "#E8EDF7" : T.sub, fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: syne }}>⚡ Run pass now</button>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "16px", alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "300px 1fr", gap: "16px", alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <Label style={{ marginBottom: "2px" }}>Token Controls</Label>
           <Toggle on={ctrl.observeOnly} onClick={() => update({ observeOnly: !ctrl.observeOnly })} label="Observe-only" sub="Heuristics only — never spend tokens" />
@@ -881,7 +957,7 @@ function AgentsView() {
   );
 }
 // ─── SEO VIEW — article pipeline with approval gate ──────────────────────────
-function SeoView({ articles, setArticles }) {
+function SeoView({ articles, setArticles, isMobile }) {
   const [composing, setComposing] = useState(false);
   const [openArticle, setOpenArticle] = useState(null);
   const [keywords, setKeywords] = useState(() => sm.get("seo_keywords") || "");
@@ -895,7 +971,7 @@ function SeoView({ articles, setArticles }) {
   const nextAuto = autoDraft && lastAuto ? new Date(lastAuto + everyDays * 86400000) : null;
 
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>SEO</div>
@@ -905,7 +981,7 @@ function SeoView({ articles, setArticles }) {
       </div>
 
       {/* Auto-draft cadence + keyword panel */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "18px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? "10px" : "14px", marginBottom: "18px" }}>
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
             <Label>Auto-draft cadence</Label>
@@ -938,11 +1014,11 @@ function SeoView({ articles, setArticles }) {
           <Btn primary onClick={() => setComposing(true)}>✦ Draft the first article</Btn>
         </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", alignItems: "start" }}>
+        <div style={kanbanWrapStyle(isMobile, 4)}>
           {ARTICLE_STAGES.map(stage => {
             const items = byStage(stage.key);
             return (
-              <div key={stage.key}>
+              <div key={stage.key} style={kanbanColStyle(isMobile)}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "10px", padding: "0 2px" }}>
                   <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: stage.color }} />
                   <span style={{ fontSize: "11px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{stage.label}</span>
@@ -963,13 +1039,13 @@ function SeoView({ articles, setArticles }) {
         </div>
       )}
 
-      {composing && <ComposeArticleModal keywords={keywords} onClose={() => setComposing(false)} onCreate={(a) => { save([{ id: `a_${Date.now()}`, created_at: new Date().toISOString(), ...a }, ...articles]); setComposing(false); }} />}
-      {openArticle && <ArticleDetail article={openArticle} onClose={() => setOpenArticle(null)} onUpdate={update} onDelete={(id) => { save(articles.filter(a => a.id !== id)); setOpenArticle(null); }} />}
+      {composing && <ComposeArticleModal keywords={keywords} isMobile={isMobile} onClose={() => setComposing(false)} onCreate={(a) => { save([{ id: `a_${Date.now()}`, created_at: new Date().toISOString(), ...a }, ...articles]); setComposing(false); }} />}
+      {openArticle && <ArticleDetail article={openArticle} isMobile={isMobile} onClose={() => setOpenArticle(null)} onUpdate={update} onDelete={(id) => { save(articles.filter(a => a.id !== id)); setOpenArticle(null); }} />}
     </div>
   );
 }
 
-function ComposeArticleModal({ keywords, onClose, onCreate }) {
+function ComposeArticleModal({ keywords, onClose, onCreate, isMobile }) {
   const kwList = (keywords || "").split("\n").map(k => k.trim()).filter(Boolean);
   const [keyword, setKeyword] = useState(kwList[0] || "");
   const [notes, setNotes] = useState("");
@@ -982,8 +1058,8 @@ function ComposeArticleModal({ keywords, onClose, onCreate }) {
     else onCreate({ keyword, stage: "idea" });
   };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", padding: "26px 28px", width: "520px", maxWidth: "94vw", boxShadow: "0 32px 80px rgba(11,17,32,0.24)" }}>
+    <ModalShell onClose={onClose} isMobile={isMobile} width={520}>
+      <div style={{ padding: isMobile ? "14px 18px calc(18px + env(safe-area-inset-bottom))" : "26px 28px", overflowY: "auto" }}>
         <div style={{ fontSize: "16px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "4px" }}>New Article</div>
         <div style={{ fontSize: "12px", color: T.faint, marginBottom: "18px" }}>Claude drafts the full package — title tag, meta, outline, article, internal links — into your review queue.</div>
         <Label style={{ marginBottom: "8px" }}>Target keyword</Label>
@@ -1002,11 +1078,11 @@ function ComposeArticleModal({ keywords, onClose, onCreate }) {
           <Btn onClick={onClose} style={{ padding: "12px 18px" }}>Cancel</Btn>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 
-function ArticleDetail({ article, onClose, onUpdate, onDelete }) {
+function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
   const [publishing, setPublishing] = useState(false);
   const [pubResult, setPubResult] = useState(null);
   const stage = article.stage || "idea";
@@ -1022,10 +1098,10 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete }) {
     setPublishing(false);
   };
   const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6 };
+  const hPad = isMobile ? "18px" : "24px";
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadein 0.15s ease both" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: "18px", width: "720px", maxWidth: "95vw", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(11,17,32,0.24)", overflow: "hidden" }}>
-        <div style={{ padding: "18px 24px", borderBottom: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+    <ModalShell onClose={onClose} isMobile={isMobile} width={720}>
+        <div style={{ padding: `18px ${hPad}`, borderBottom: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexShrink: 0 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 7px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{stage}{article.auto_drafted ? " · agent draft" : ""}</div>
             <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{article.title_tag || article.keyword || "Untitled"}</div>
@@ -1033,8 +1109,8 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete }) {
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
         </div>
-        <div style={{ padding: "18px 24px", overflowY: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+        <div style={{ padding: `18px ${hPad}`, overflowY: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
             <div><Label style={{ marginBottom: "6px" }}>Title tag</Label><div style={box}>{article.title_tag || "—"}</div></div>
             <div><Label style={{ marginBottom: "6px" }}>Slug</Label><div style={{ ...box, fontFamily: mono, fontSize: "12px" }}>/{article.slug || "—"}</div></div>
           </div>
@@ -1045,10 +1121,10 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete }) {
             <div style={{ ...box, marginBottom: "16px" }}>{article.internal_links.map((l, i) => <div key={i} style={{ fontSize: "12px" }}>"{l.anchor}" → <span style={{ fontFamily: mono, color: T.greenDeep }}>{l.target}</span></div>)}</div>
           </>)}
           <Label style={{ marginBottom: "6px" }}>Article</Label>
-          <div style={{ ...box, maxHeight: "320px", overflowY: "auto" }} dangerouslySetInnerHTML={{ __html: article.article_html || "<em>No draft yet.</em>" }} />
+          <div style={{ ...box, maxHeight: isMobile ? "44vh" : "320px", overflowY: "auto" }} dangerouslySetInnerHTML={{ __html: article.article_html || "<em>No draft yet.</em>" }} />
           {pubResult && <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "9px", fontSize: "12px", background: pubResult.error ? "rgba(220,38,38,0.07)" : "rgba(14,159,110,0.07)", color: pubResult.error ? T.red : T.greenDeep, border: `1px solid ${pubResult.error ? "rgba(220,38,38,0.2)" : "rgba(14,159,110,0.25)"}` }}>{pubResult.error ? `Publish failed: ${pubResult.error}` : pubResult.method === "clipboard" ? "Local mode — article HTML copied to clipboard. Paste into Shopify admin → Blog posts → Add." : "Published to Shopify ✓"}</div>}
         </div>
-        <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+        <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
           <button onClick={() => onDelete(article.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
           <div style={{ display: "flex", gap: "8px" }}>
             {stage === "review" && <><Btn onClick={reject}>✕ Reject</Btn><Btn primary onClick={approve}>✓ Approve</Btn></>}
@@ -1056,13 +1132,12 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete }) {
             {stage === "published" && article.published_url && <a href={article.published_url} target="_blank" rel="noopener" style={{ fontSize: "12px", color: T.greenDeep, fontWeight: 700, textDecoration: "none", padding: "10px 16px" }}>View live ›</a>}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
 // ─── MISSION — command center across both pillars ────────────────────────────
-function MissionView({ creators, shorts, onNavigate }) {
+function MissionView({ creators, shorts, onNavigate, isMobile }) {
   const engCtrl = eng.get();
   const kbAll = kb.all();
   const cPipe = { prospected: creators.filter(c => (c.stage||"prospected") === "prospected").length, sent: creators.filter(c => c.stage === "sent").length, replied: creators.filter(c => c.stage === "replied").length, collab: creators.filter(c => c.stage === "collab").length };
@@ -1076,19 +1151,20 @@ function MissionView({ creators, shorts, onNavigate }) {
   const Stat = ({ label, value, sub, accent }) => (
     <Card><Label style={{ marginBottom: "10px" }}>{label}</Label><div style={{ fontSize: "26px", fontWeight: 500, color: accent || T.ink, fontFamily: mono, lineHeight: 1 }}>{value}</div>{sub && <div style={{ fontSize: "10px", color: T.faint, marginTop: "6px" }}>{sub}</div>}</Card>
   );
+  const spanMobile = isMobile ? { gridColumn: "1 / -1" } : undefined;
 
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "18px" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "18px", flexWrap: "wrap", gap: "8px" }}>
         <div>
-          <div style={{ fontSize: "24px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{greeting}, Cameron</div>
+          <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{greeting}, Cameron</div>
           <div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Zero To Secure</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: T.green, fontWeight: 600 }}><span style={{ width: "7px", height: "7px", borderRadius: "50%", background: T.green }} />Live</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px", marginBottom: "16px" }}>
-        <Card>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? "10px" : "14px", marginBottom: "16px" }}>
+        <Card style={spanMobile}>
           <Label style={{ marginBottom: "12px" }}>Creator Pipeline</Label>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {[["Prospected", cPipe.prospected, T.faint], ["Sent", cPipe.sent, T.blue], ["Replied", cPipe.replied, "#EC4899"], ["Collab", cPipe.collab, T.green]].map(([l, v, c], i) => (
@@ -1097,7 +1173,7 @@ function MissionView({ creators, shorts, onNavigate }) {
           </div>
           <div style={{ fontSize: "10px", color: T.faint, marginTop: "12px", textAlign: "center" }}><span style={{ color: T.green, fontWeight: 600 }}>{fmtSubs(totalReach)} weighted reach</span> in pipeline</div>
         </Card>
-        <Card>
+        <Card style={spanMobile}>
           <Label style={{ marginBottom: "12px" }}>Shorts Studio</Label>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {[["In Production", sPipe.wip, T.amber], ["Ready", sPipe.ready, T.green], ["Posted", sPipe.posted, T.purple]].map(([l, v, c], i) => (
@@ -1110,7 +1186,7 @@ function MissionView({ creators, shorts, onNavigate }) {
         <Stat label="AI Spend" value={`$${obs.getAll().reduce((s,l) => s + (l.costEstimate||0), 0).toFixed(2)}`} sub={`${obs.getAll().length} calls`} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? "12px" : "16px" }}>
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}><Label>Agent Roster</Label><span onClick={() => onNavigate("agents")} style={{ fontSize: "10px", color: T.amberDeep, cursor: "pointer", fontWeight: 700 }}>Engine ›</span></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
@@ -1142,18 +1218,18 @@ function MissionView({ creators, shorts, onNavigate }) {
 }
 
 // ─── OPS — observability ─────────────────────────────────────────────────────
-function OpsView() {
+function OpsView({ isMobile }) {
   const [logs, setLogs] = useState(obs.getAll());
   const testLog = () => { const models = ["claude-haiku-4-5-20251001","claude-sonnet-4-6"]; const m = models[Math.floor(Math.random()*2)]; const i = 800 + Math.floor(Math.random()*3000), o = 200 + Math.floor(Math.random()*1200); obs.log({ fn: ["generate_short","regen_asset","agent_synthesis"][Math.floor(Math.random()*3)], model: m, inputTokens: i, outputTokens: o, costEstimate: estimateCost(m,i,o), latencyMs: 600+Math.floor(Math.random()*5000), ok: Math.random()>0.08 }); setLogs(obs.getAll()); };
   const total = logs.reduce((s,l) => s + (l.costEstimate||0), 0);
   const ok = logs.filter(l => l.ok !== false).length;
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", padding: "24px 28px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
         <div><div style={{ fontSize: "18px", fontWeight: 700, color: T.ink, fontFamily: syne }}>Observability</div><div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>Every Claude call — tokens, cost, latency, success.</div></div>
         <div style={{ display: "flex", gap: "8px" }}><Btn primary onClick={testLog}>+ Test log</Btn><Btn onClick={() => setLogs(obs.getAll())}>↻ Refresh</Btn><Btn onClick={() => { obs.clear(); setLogs([]); }}>Clear</Btn></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px", marginBottom: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? "10px" : "14px", marginBottom: "16px" }}>
         {[["Total Calls", logs.length], ["Est. Cost", `$${total.toFixed(3)}`], ["Success", logs.length ? `${Math.round(ok/logs.length*100)}%` : "—"], ["Avg Latency", logs.length ? `${Math.round(logs.reduce((s,l)=>s+(l.latencyMs||0),0)/logs.length)}ms` : "—"]].map(([l, v], i) => (
           <Card key={i}><Label style={{ marginBottom: "10px" }}>{l}</Label><div style={{ fontSize: "24px", fontWeight: 500, color: T.ink, fontFamily: mono }}>{v}</div></Card>
         ))}
@@ -1162,7 +1238,16 @@ function OpsView() {
         <Label style={{ marginBottom: "12px" }}>Run Log</Label>
         {logs.length === 0 ? <div style={{ fontSize: "13px", color: T.faint, textAlign: "center", padding: "24px 0" }}>No calls logged. Hit "Test log" to verify tracking works.</div> : (
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            {logs.slice(0, 30).map((l, i) => (
+            {logs.slice(0, 30).map((l, i) => isMobile ? (
+              <div key={i} style={{ padding: "9px 2px", borderBottom: i < 29 ? `1px solid ${T.line}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: l.ok === false ? T.red : T.green, flexShrink: 0 }} />
+                  <span style={{ fontSize: "12px", color: T.ink, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.fn}</span>
+                  <span style={{ fontSize: "11px", color: T.ink, fontFamily: mono, flexShrink: 0 }}>${(l.costEstimate||0).toFixed(4)}</span>
+                </div>
+                <div style={{ fontSize: "10px", color: T.faint, fontFamily: mono, marginTop: "3px", paddingLeft: "15px" }}>{l.model?.includes("sonnet") ? "Sonnet" : "Haiku"} · {l.latencyMs}ms</div>
+              </div>
+            ) : (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "9px 4px", borderBottom: i < 29 ? `1px solid ${T.line}` : "none" }}>
                 <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: l.ok === false ? T.red : T.green, flexShrink: 0 }} />
                 <span style={{ fontSize: "12px", color: T.ink, fontWeight: 600, flex: 1 }}>{l.fn}</span>
@@ -1181,6 +1266,7 @@ function OpsView() {
 // ─── APP SHELL ───────────────────────────────────────────────────────────────
 export default function App() {
   useGlobalStyles();
+  const isMobile = useIsMobile();
   const [view, setView] = useState("mission");
   const [creators, setCreators] = useState(() => sm.get("creators") || []);
   const [shorts, setShorts] = useState(() => sm.get("shorts") || []);
@@ -1190,27 +1276,30 @@ export default function App() {
   const TABS = ["mission", "creators", "studio", "seo", "agents", "ops"];
 
   return (
-    <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: isMobile ? "calc(60px + env(safe-area-inset-bottom))" : 0 }}>
       <AgentEngine creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
-      <div style={{ borderBottom: `1px solid ${T.line}`, padding: "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
+      <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "18px", height: "18px", borderRadius: "5px", background: "linear-gradient(135deg, #12B886 0%, #0A7A54 100%)", boxShadow: "0 1px 3px rgba(10,122,84,0.4), inset 0 1px 0 rgba(255,255,255,0.25)", display: "inline-block" }} />
             <span style={{ fontSize: "13px", fontWeight: 800, color: "#06281C", letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne }}>Zero To Secure</span>
           </span>
-          <div style={{ display: "flex", gap: "2px", background: "rgba(15,23,42,0.04)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid rgba(15,23,42,0.04)` }}>
-            {TABS.map(t => (
-              <button key={t} onClick={() => setView(t)} style={{ padding: "5px 15px", background: view === t ? "#FFFFFF" : "transparent", border: "none", borderRadius: "7px", color: view === t ? "#0B1220" : "#8A97A8", fontSize: "11px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: syne, boxShadow: view === t ? "0 1px 2px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.06)" : "none" }}>{t}</button>
-            ))}
-          </div>
+          {!isMobile && (
+            <div style={{ display: "flex", gap: "2px", background: "rgba(15,23,42,0.04)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid rgba(15,23,42,0.04)` }}>
+              {TABS.map(t => (
+                <button key={t} onClick={() => setView(t)} style={{ padding: "5px 15px", background: view === t ? "#FFFFFF" : "transparent", border: "none", borderRadius: "7px", color: view === t ? "#0B1220" : "#8A97A8", fontSize: "11px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: syne, boxShadow: view === t ? "0 1px 2px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.06)" : "none" }}>{t}</button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} />}
-      {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} />}
-      {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} />}
-      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} />}
-      {view === "agents" && <AgentsView />}
-      {view === "ops" && <OpsView />}
+      {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} isMobile={isMobile} />}
+      {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} />}
+      {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} />}
+      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} isMobile={isMobile} />}
+      {view === "agents" && <AgentsView isMobile={isMobile} />}
+      {view === "ops" && <OpsView isMobile={isMobile} />}
+      {isMobile && <BottomNav view={view} setView={setView} tabs={TABS} />}
     </div>
   );
 }
