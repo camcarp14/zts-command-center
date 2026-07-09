@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Fragment } from "react";
 import { supabase } from "./supabaseClient";
 import DOMPurify from "dompurify";
+import { AnimatedNumber, EmptyState, SkeletonLine, SkeletonRows, SkeletonBoard, CommandPalette, useToast, M } from "./ui.jsx";
 
 // ════════════════════════════════════════════════════════════════════════════
 // ZERO TO SECURE — Creator outreach + Shorts production command center.
@@ -124,6 +125,12 @@ function useGlobalStyles() {
       @keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes slideup { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+      @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+      @keyframes toastIn { from { opacity: 0; transform: translateX(18px) scale(0.97); } to { opacity: 1; transform: none; } }
+      @keyframes toastOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(18px) scale(0.97); } }
+      @keyframes toastShrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+      @keyframes paletteIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+      @keyframes cardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
       html { overflow-x: hidden; }
       body { overflow-x: hidden; }
       @media (hover: hover) and (pointer: fine) {
@@ -496,9 +503,15 @@ async function synthesizeInsight(recentObs, allowSonnet) {
   return raw;
 }
 // ─── STUDIO VIEW — the Shorts production pillar ──────────────────────────────
-function StudioView({ shorts, setShorts, isMobile }) {
+function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSignalConsumed }) {
   const [composing, setComposing] = useState(false);
   const [openShort, setOpenShort] = useState(null);
+  const toast = useToast();
+
+  // Palette handoff: "New Short" from ⌘K opens the composer, even if Studio
+  // was already the active view. Consuming clears the signal in App so a
+  // later remount doesn't re-open it.
+  useEffect(() => { if (openSignal > 0) { setComposing(true); onSignalConsumed?.(); } }, [openSignal, onSignalConsumed]);
 
   const addShort = async (short) => {
     const fields = { stage: "script", ...short };
@@ -508,7 +521,7 @@ function StudioView({ shorts, setShorts, isMobile }) {
       return;
     }
     const { data, error: err } = await supabase.from("shorts").insert(fields).select();
-    if (err) { console.warn("[StudioView] insert failed:", err.message); setComposing(false); return; }
+    if (err) { console.warn("[StudioView] insert failed:", err.message); toast.push("Couldn't save the Short: " + err.message, { tone: "error" }); setComposing(false); return; }
     const s = data?.[0];
     if (s) { setShorts(prev => [s, ...prev]); setOpenShort(s); }
     setComposing(false);
@@ -518,14 +531,14 @@ function StudioView({ shorts, setShorts, isMobile }) {
     if (openShort?.id === id) setOpenShort(prev => ({ ...prev, ...patch }));
     if (!supabase) return;
     const { error: err } = await supabase.from("shorts").update(patch).eq("id", id);
-    if (err) console.warn("[StudioView] update failed:", err.message);
+    if (err) { console.warn("[StudioView] update failed:", err.message); toast.push("Change didn't save — " + err.message, { tone: "error" }); }
   };
   const delShort = async (id) => {
     setShorts(prev => prev.filter(s => s.id !== id)); // optimistic
     setOpenShort(null);
     if (!supabase) return;
     const { error: err } = await supabase.from("shorts").delete().eq("id", id);
-    if (err) console.warn("[StudioView] delete failed:", err.message);
+    if (err) { console.warn("[StudioView] delete failed:", err.message); toast.push("Delete didn't stick — " + err.message, { tone: "error" }); }
   };
 
   const byStage = (k) => shorts.filter(s => s.stage === k);
@@ -541,12 +554,12 @@ function StudioView({ shorts, setShorts, isMobile }) {
       </div>
 
       {/* Stage board */}
-      {shorts.length === 0 ? (
-        <Card style={{ textAlign: "center", padding: "48px 24px" }}>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "8px" }}>No Shorts yet</div>
-          <div style={{ fontSize: "13px", color: T.faint, marginBottom: "18px" }}>Spin up your first Short — pick a type, give a topic, and Claude drafts the whole package.</div>
-          <Btn primary onClick={() => setComposing(true)}>✦ Create your first Short</Btn>
-        </Card>
+      {loading ? (
+        <SkeletonBoard cols={4} />
+      ) : shorts.length === 0 ? (
+        <EmptyState icon="film" title="No Shorts yet"
+          sub="Spin up your first Short — pick a type, give a topic, and Claude drafts the whole package."
+          action={<Btn primary onClick={() => setComposing(true)}>✦ Create your first Short</Btn>} />
       ) : (
         <div style={kanbanWrapStyle(isMobile, 5)}>
           {SHORT_STAGES.map(stage => {
@@ -559,16 +572,19 @@ function StudioView({ shorts, setShorts, isMobile }) {
                   <span style={{ fontSize: "11px", color: T.faint, fontFamily: mono }}>{items.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {items.map(s => {
+                  {items.map((s, idx) => {
                     const t = SHORT_TYPES[s.type] || SHORT_TYPES.angle;
                     return (
-                      <Card key={s.id} hover onClick={() => setOpenShort(s)} style={{ padding: "12px 13px", borderLeft: `3px solid ${stage.color}` }}>
+                      <div key={s.id} style={{ animation: `cardIn 0.3s ${M.easeOut} both`, animationDelay: `${Math.min(idx, 8) * 30}ms` }}>
+                      <Card hover onClick={() => setOpenShort(s)} style={{ padding: "12px 13px", borderLeft: `3px solid ${stage.color}` }}>
                         <div style={{ display: "inline-block", fontSize: "8px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{t.label}</div>
                         <div style={{ fontSize: "12px", fontWeight: 600, color: T.ink, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.title || s.topic || "Untitled"}</div>
                         {s.hook && <div style={{ fontSize: "10px", color: T.faint, marginTop: "4px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.hook}</div>}
                       </Card>
+                      </div>
                     );
                   })}
+                  {items.length === 0 && <EmptyState compact icon="inbox" tint={T.faint} title="Nothing here" />}
                 </div>
               </div>
             );
@@ -587,13 +603,14 @@ function ComposeModal({ onClose, onCreate, isMobile }) {
   const [type, setType] = useState("angle");
   const [topic, setTopic] = useState("");
   const [gen, setGen] = useState(false);
+  const toast = useToast();
 
   const create = async () => {
     setGen(true);
     const pkg = await generateShort({ type, topic });
     setGen(false);
-    if (pkg) onCreate({ type, topic, stage: "assets", ...pkg });
-    else onCreate({ type, topic, stage: "idea" }); // generation failed → start as idea
+    if (pkg) { onCreate({ type, topic, stage: "assets", ...pkg }); toast.push("Short package drafted — hook, script, thumbnails, title, the lot.", { tone: "success" }); }
+    else { onCreate({ type, topic, stage: "idea" }); toast.push("Generation didn't complete — the Short was saved as an idea. Open it to retry.", { tone: "warning" }); }
   };
 
   return (
@@ -629,6 +646,7 @@ function ComposeModal({ onClose, onCreate, isMobile }) {
 function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
   const [regen, setRegen] = useState(null); // which asset is regenerating
   const [tab, setTab] = useState("assets");
+  const toast = useToast();
   const t = SHORT_TYPES[short.type] || SHORT_TYPES.angle;
   const checklist = short.checklist || {};
 
@@ -637,6 +655,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
     const result = await regenAsset({ asset, short, type: short.type });
     setRegen(null);
     if (result) onUpdate(short.id, result);
+    else toast.push("Regeneration failed — try again in a moment.", { tone: "error" });
   };
   const toggleCheck = (item) => { const next = { ...checklist, [item]: !checklist[item] }; onUpdate(short.id, { checklist: next }); };
   const advance = () => {
@@ -647,7 +666,8 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
   };
   const copyAll = () => {
     const text = `TITLE: ${short.title || ""}\n\nHOOK: ${short.hook || ""}\n\nSCRIPT:\n${short.script || ""}\n\nDESCRIPTION:\n${short.description || ""}\n\nTAGS: ${(short.tags||[]).join(", ")}\n\nPINNED COMMENT: ${short.pinned_comment || ""}`;
-    try { navigator.clipboard.writeText(text); } catch {}
+    try { navigator.clipboard.writeText(text); toast.push("All assets copied — paste straight into YouTube Studio.", { tone: "success" }); }
+    catch { toast.push("Couldn't reach the clipboard.", { tone: "error" }); }
   };
 
   const checkDone = PUBLISH_CHECKLIST.filter(i => checklist[i]).length;
@@ -686,7 +706,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
               {!short.script && short.stage === "idea" ? (
                 <div style={{ textAlign: "center", padding: "30px 0" }}>
                   <div style={{ fontSize: "13px", color: T.faint, marginBottom: "16px" }}>Generation didn't complete. Try again:</div>
-                  <Btn primary onClick={async () => { setRegen("all"); const pkg = await generateShort({ type: short.type, topic: short.topic }); setRegen(null); if (pkg) onUpdate(short.id, { stage: "assets", ...pkg }); }}>{regen === "all" ? "Generating…" : "✦ Generate assets"}</Btn>
+                  <Btn primary disabled={regen === "all"} onClick={async () => { setRegen("all"); const pkg = await generateShort({ type: short.type, topic: short.topic }); setRegen(null); if (pkg) onUpdate(short.id, { stage: "assets", ...pkg }); else toast.push("Generation failed again — try in a moment.", { tone: "error" }); }}>{regen === "all" ? "Generating…" : "✦ Generate assets"}</Btn>
                 </div>
               ) : (
                 <>
@@ -745,14 +765,20 @@ const CREATOR_STAGES = [
   { key: "replied", label: "Replied", color: "#EC4899" },
   { key: "collab", label: "Collab", color: "#0E9F6E" },
 ];
-function CreatorsView({ creators, setCreators, isMobile }) {
+function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0, onSignalConsumed }) {
   const [adding, setAdding] = useState(false);
   const [sortBy, setSortBy] = useState("value");
+  const toast = useToast();
+
+  // Palette handoff: "Add Creator" from ⌘K opens the form, even if Creators
+  // was already the active view. Consuming clears the signal in App.
+  useEffect(() => { if (openSignal > 0) { setAdding(true); onSignalConsumed?.(); } }, [openSignal, onSignalConsumed]);
+
   const move = async (id, stage) => {
     setCreators(prev => prev.map(c => c.id === id ? { ...c, stage, status: stage } : c)); // optimistic
     if (!supabase) return;
     const { error: err } = await supabase.from("creators").update({ stage, status: stage }).eq("id", id);
-    if (err) console.warn("[CreatorsView] stage update failed:", err.message);
+    if (err) { console.warn("[CreatorsView] stage update failed:", err.message); toast.push("Stage change didn't save — " + err.message, { tone: "error" }); }
   };
 
   const sorted = [...creators].sort((a, b) => {
@@ -787,12 +813,12 @@ function CreatorsView({ creators, setCreators, isMobile }) {
         </div>
       )}
 
-      {creators.length === 0 ? (
-        <Card style={{ textAlign: "center", padding: "48px 24px" }}>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "8px" }}>No creators yet</div>
-          <div style={{ fontSize: "13px", color: T.faint, marginBottom: "18px" }}>Add YouTube creators to start building your collab pipeline. They're auto-scored by fit to ZTS.</div>
-          <Btn primary onClick={() => setAdding(true)}>+ Add your first creator</Btn>
-        </Card>
+      {loading ? (
+        <SkeletonBoard cols={4} />
+      ) : creators.length === 0 ? (
+        <EmptyState icon="users" title="No creators yet"
+          sub="Add YouTube creators to start building your collab pipeline. They're auto-scored by fit to ZTS."
+          action={<Btn primary onClick={() => setAdding(true)}>+ Add your first creator</Btn>} />
       ) : (
         <div style={kanbanWrapStyle(isMobile, 5)}>
           {CREATOR_STAGES.map(stage => {
@@ -805,12 +831,13 @@ function CreatorsView({ creators, setCreators, isMobile }) {
                   <span style={{ fontSize: "11px", color: T.faint, fontFamily: mono }}>{items.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {items.map(c => {
+                  {items.map((c, idx) => {
                     const v = creatorValue(c);
                     const tierColor = v.tier === "Prime" ? T.green : v.tier === "Strong" ? T.blue : v.tier === "Fit" ? T.amber : T.faint;
                     const nextStage = CREATOR_STAGES[Math.min(CREATOR_STAGES.findIndex(s => s.key === stage.key) + 1, CREATOR_STAGES.length - 1)];
                     return (
-                      <Card key={c.id} style={{ padding: "12px 13px", borderLeft: `3px solid ${tierColor}` }}>
+                      <div key={c.id} style={{ animation: `cardIn 0.3s ${M.easeOut} both`, animationDelay: `${Math.min(idx, 8) * 30}ms` }}>
+                      <Card style={{ padding: "12px 13px", borderLeft: `3px solid ${tierColor}` }}>
                         <div style={{ fontSize: "12px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{c.channel_name}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "10px", color: T.sub, fontFamily: mono }}>{fmtSubs(c.subscriber_count)} subs</span>
@@ -818,8 +845,10 @@ function CreatorsView({ creators, setCreators, isMobile }) {
                         </div>
                         {stage.key !== "collab" && <button onClick={() => move(c.id, nextStage.key)} style={{ marginTop: "8px", width: "100%", padding: "5px", background: "transparent", border: `1px solid ${T.line}`, borderRadius: "7px", fontSize: "10px", fontWeight: 700, color: T.sub, cursor: "pointer", fontFamily: syne }}>→ {nextStage.label}</button>}
                       </Card>
+                      </div>
                     );
                   })}
+                  {items.length === 0 && <EmptyState compact icon="inbox" tint={T.faint} title="Nothing here" />}
                 </div>
               </div>
             );
@@ -835,8 +864,8 @@ function CreatorsView({ creators, setCreators, isMobile }) {
           return;
         }
         const { data, error: err } = await supabase.from("creators").insert(fields).select();
-        if (err) { console.warn("[AddCreatorModal] insert failed:", err.message); return; }
-        if (data?.[0]) setCreators(prev => [data[0], ...prev]);
+        if (err) { console.warn("[AddCreatorModal] insert failed:", err.message); toast.push("Couldn't add the creator: " + err.message, { tone: "error" }); return; }
+        if (data?.[0]) { setCreators(prev => [data[0], ...prev]); toast.push(`${c.channel_name} added to the pipeline.`, { tone: "success" }); }
         setAdding(false);
       }} />}
     </div>
@@ -984,7 +1013,7 @@ function AgentsView({ isMobile }) {
         <div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}><Label>Knowledge & Ideas ({feed.length})</Label>{feed.length > 0 && <button onClick={() => { kb.clear(); setFeed([]); }} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Clear</button>}</div>
           {feed.length === 0 ? (
-            <Card style={{ textAlign: "center", padding: "40px" }}><div style={{ fontSize: "14px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "8px" }}>Nothing observed yet</div><div style={{ fontSize: "13px", color: T.faint }}>Press play — the roster starts watching your creators and Shorts at zero token cost.</div></Card>
+            <EmptyState icon="radar" title="Nothing observed yet" sub="Press play — the roster starts watching your creators and Shorts at zero token cost." />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {feed.map(e => { const col = SEVC[e.signal] || T.faint; const ins = e.type === "insight"; return (
@@ -1001,19 +1030,24 @@ function AgentsView({ isMobile }) {
   );
 }
 // ─── SEO VIEW — article pipeline with approval gate ──────────────────────────
-function SeoView({ articles, setArticles, onAddArticle, isMobile }) {
+function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openSignal = 0, onSignalConsumed }) {
   const [composing, setComposing] = useState(false);
   const [openArticle, setOpenArticle] = useState(null);
   const [keywords, setKeywords] = useState(() => sm.get("seo_keywords") || "");
   const [autoDraft, setAutoDraft] = useState(() => eng.get().seoAutoDraft || false);
   const [everyDays, setEveryDays] = useState(() => eng.get().seoEveryDays || 4);
+  const toast = useToast();
+
+  // Palette handoff: "New Article" from ⌘K opens the composer, even if SEO
+  // was already the active view. Consuming clears the signal in App.
+  useEffect(() => { if (openSignal > 0) { setComposing(true); onSignalConsumed?.(); } }, [openSignal, onSignalConsumed]);
 
   const update = async (id, patch) => {
     setArticles(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a)); // optimistic
     if (openArticle?.id === id) setOpenArticle(prev => ({ ...prev, ...patch }));
     if (!supabase) return;
     const { error: err } = await supabase.from("articles").update(patch).eq("id", id);
-    if (err) console.warn("[SeoView] update failed:", err.message);
+    if (err) { console.warn("[SeoView] update failed:", err.message); toast.push("Change didn't save — " + err.message, { tone: "error" }); }
   };
   const byStage = (k) => articles.filter(a => (a.stage || "idea") === k);
   const lastAuto = sm.get("seo_last_autodraft");
@@ -1056,12 +1090,12 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile }) {
       </div>
 
       {/* Pipeline board */}
-      {articles.length === 0 ? (
-        <Card style={{ textAlign: "center", padding: "48px 24px" }}>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, marginBottom: "8px" }}>No articles yet</div>
-          <div style={{ fontSize: "13px", color: T.faint, marginBottom: "18px" }}>Generate your first SEO article, or flip on auto-draft and let the agent queue them for your review.</div>
-          <Btn primary onClick={() => setComposing(true)}>✦ Draft the first article</Btn>
-        </Card>
+      {loading ? (
+        <SkeletonBoard cols={4} />
+      ) : articles.length === 0 ? (
+        <EmptyState icon="doc" title="No articles yet"
+          sub="Generate your first SEO article, or flip on auto-draft and let the agent queue them for your review."
+          action={<Btn primary onClick={() => setComposing(true)}>✦ Draft the first article</Btn>} />
       ) : (
         <div style={kanbanWrapStyle(isMobile, 4)}>
           {ARTICLE_STAGES.map(stage => {
@@ -1074,13 +1108,16 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile }) {
                   <span style={{ fontSize: "11px", color: T.faint, fontFamily: mono }}>{items.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {items.map(a => (
-                    <Card key={a.id} hover onClick={() => setOpenArticle(a)} style={{ padding: "12px 13px", borderLeft: `3px solid ${stage.color}` }}>
+                  {items.map((a, idx) => (
+                    <div key={a.id} style={{ animation: `cardIn 0.3s ${M.easeOut} both`, animationDelay: `${Math.min(idx, 8) * 30}ms` }}>
+                    <Card hover onClick={() => setOpenArticle(a)} style={{ padding: "12px 13px", borderLeft: `3px solid ${stage.color}` }}>
                       {a.auto_drafted && <div style={{ display: "inline-block", fontSize: "8px", fontWeight: 700, color: T.greenDeep, background: "rgba(14,159,110,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>Agent draft</div>}
                       <div style={{ fontSize: "12px", fontWeight: 600, color: T.ink, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.title_tag || a.keyword || "Untitled"}</div>
                       {a.target_keyword && <div style={{ fontSize: "10px", color: T.faint, marginTop: "4px", fontFamily: mono }}>{a.target_keyword}{a.word_count ? ` · ${a.word_count}w` : ""}</div>}
                     </Card>
+                    </div>
                   ))}
+                  {items.length === 0 && <EmptyState compact icon="inbox" tint={T.faint} title="Nothing here" />}
                 </div>
               </div>
             );
@@ -1094,7 +1131,7 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile }) {
         setOpenArticle(null);
         if (!supabase) return;
         const { error: err } = await supabase.from("articles").delete().eq("id", id);
-        if (err) console.warn("[SeoView] delete failed:", err.message);
+        if (err) { console.warn("[SeoView] delete failed:", err.message); toast.push("Delete didn't stick — " + err.message, { tone: "error" }); }
       }} />}
     </div>
   );
@@ -1105,12 +1142,13 @@ function ComposeArticleModal({ keywords, onClose, onCreate, isMobile }) {
   const [keyword, setKeyword] = useState(kwList[0] || "");
   const [notes, setNotes] = useState("");
   const [gen, setGen] = useState(false);
+  const toast = useToast();
   const create = async () => {
     setGen(true);
     const pkg = await generateArticle({ keyword, notes });
     setGen(false);
-    if (pkg) onCreate({ keyword, stage: "review", ...pkg });
-    else onCreate({ keyword, stage: "idea" });
+    if (pkg) { onCreate({ keyword, stage: "review", ...pkg }); toast.push(`Article drafted into review: "${pkg.title_tag}"`, { tone: "success" }); }
+    else { onCreate({ keyword, stage: "idea" }); toast.push("Drafting didn't complete — saved as an idea. Open it to retry.", { tone: "warning" }); }
   };
   return (
     <ModalShell onClose={onClose} isMobile={isMobile} width={520}>
@@ -1192,7 +1230,7 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
 }
 
 // ─── MISSION — command center across both pillars ────────────────────────────
-function MissionView({ creators, shorts, onNavigate, isMobile }) {
+function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
   const engCtrl = eng.get();
   const kbAll = kb.all();
   const cPipe = { prospected: creators.filter(c => (c.stage||"prospected") === "prospected").length, sent: creators.filter(c => c.stage === "sent").length, replied: creators.filter(c => c.stage === "replied").length, collab: creators.filter(c => c.stage === "collab").length };
@@ -1203,10 +1241,22 @@ function MissionView({ creators, shorts, onNavigate, isMobile }) {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const recent = obs.getAll().slice(0, 6);
 
-  const Stat = ({ label, value, sub, accent }) => (
-    <Card><Label style={{ marginBottom: "10px" }}>{label}</Label><div style={{ fontSize: "26px", fontWeight: 500, color: accent || T.ink, fontFamily: mono, lineHeight: 1 }}>{value}</div>{sub && <div style={{ fontSize: "10px", color: T.faint, marginTop: "6px" }}>{sub}</div>}</Card>
+  const Stat = ({ label, value, sub, accent, format }) => (
+    <Card><Label style={{ marginBottom: "10px" }}>{label}</Label><div style={{ fontSize: "26px", fontWeight: 500, color: accent || T.ink, fontFamily: mono, lineHeight: 1 }}>{typeof value === "number" ? <AnimatedNumber value={value} format={format} /> : value}</div>{sub && <div style={{ fontSize: "10px", color: T.faint, marginTop: "6px" }}>{sub}</div>}</Card>
   );
   const spanMobile = isMobile ? { gridColumn: "1 / -1" } : undefined;
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
+        <SkeletonLine width="240px" height="22px" style={{ marginBottom: "6px" }} />
+        <SkeletonLine width="160px" height="11px" style={{ marginBottom: "22px" }} />
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? "10px" : "14px" }}>
+          {[0,1,2,3].map(i => <SkeletonRows key={i} count={1} />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
@@ -1223,7 +1273,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile }) {
           <Label style={{ marginBottom: "12px" }}>Creator Pipeline</Label>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {[["Prospected", cPipe.prospected, T.faint], ["Sent", cPipe.sent, T.blue], ["Replied", cPipe.replied, "#EC4899"], ["Collab", cPipe.collab, T.green]].map(([l, v, c], i) => (
-              <div key={i} style={{ textAlign: "center" }}><div style={{ fontSize: "22px", fontWeight: 500, color: c, fontFamily: mono, lineHeight: 1 }}>{v}</div><div style={{ fontSize: "9px", color: T.faint, marginTop: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, fontWeight: 700 }}>{l}</div></div>
+              <div key={i} style={{ textAlign: "center" }}><div style={{ fontSize: "22px", fontWeight: 500, color: c, fontFamily: mono, lineHeight: 1 }}><AnimatedNumber value={v} /></div><div style={{ fontSize: "9px", color: T.faint, marginTop: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, fontWeight: 700 }}>{l}</div></div>
             ))}
           </div>
           <div style={{ fontSize: "10px", color: T.faint, marginTop: "12px", textAlign: "center" }}><span style={{ color: T.green, fontWeight: 600 }}>{fmtSubs(totalReach)} weighted reach</span> in pipeline</div>
@@ -1232,13 +1282,13 @@ function MissionView({ creators, shorts, onNavigate, isMobile }) {
           <Label style={{ marginBottom: "12px" }}>Shorts Studio</Label>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {[["In Production", sPipe.wip, T.amber], ["Ready", sPipe.ready, T.green], ["Posted", sPipe.posted, T.purple]].map(([l, v, c], i) => (
-              <div key={i} style={{ textAlign: "center" }}><div style={{ fontSize: "22px", fontWeight: 500, color: c, fontFamily: mono, lineHeight: 1 }}>{v}</div><div style={{ fontSize: "9px", color: T.faint, marginTop: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, fontWeight: 700 }}>{l}</div></div>
+              <div key={i} style={{ textAlign: "center" }}><div style={{ fontSize: "22px", fontWeight: 500, color: c, fontFamily: mono, lineHeight: 1 }}><AnimatedNumber value={v} /></div><div style={{ fontSize: "9px", color: T.faint, marginTop: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, fontWeight: 700 }}>{l}</div></div>
             ))}
           </div>
           <div style={{ fontSize: "10px", color: T.amberDeep, marginTop: "12px", textAlign: "center", cursor: "pointer", fontWeight: 600 }} onClick={() => onNavigate("studio")}>Open Studio ›</div>
         </Card>
         <Stat label="Ready to Post" value={sPipe.ready} sub={sPipe.ready > 0 ? "get them scheduled" : "none queued"} accent={sPipe.ready > 0 ? T.green : T.ink} />
-        <Stat label="AI Spend" value={`$${obs.getAll().reduce((s,l) => s + (l.costEstimate||0), 0).toFixed(2)}`} sub={`${obs.getAll().length} calls`} />
+        <Stat label="AI Spend" value={obs.getAll().reduce((s,l) => s + (l.costEstimate||0), 0)} format={(n) => `$${n.toFixed(2)}`} sub={`${obs.getAll().length} calls`} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? "12px" : "16px" }}>
@@ -1255,7 +1305,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile }) {
         </Card>
         <Card>
           <Label style={{ marginBottom: "14px" }}>Recent Activity</Label>
-          {recent.length === 0 ? <div style={{ fontSize: "12px", color: T.faint, textAlign: "center", padding: "20px 0" }}>No AI activity yet today.</div> : (
+          {recent.length === 0 ? <EmptyState compact dashed={false} icon="spark" tint={T.faint} title="No AI activity yet" sub="Generate a Short or run an engine pass — calls land here." /> : (
             <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
               {recent.map((l, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
@@ -1285,13 +1335,18 @@ function OpsView({ isMobile }) {
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}><Btn primary onClick={testLog}>+ Test log</Btn><Btn onClick={() => setLogs(obs.getAll())}>↻ Refresh</Btn><Btn onClick={() => { obs.clear(); setLogs([]); }}>Clear</Btn><Btn onClick={() => supabase?.auth.signOut()}>Sign out</Btn></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? "10px" : "14px", marginBottom: "16px" }}>
-        {[["Total Calls", logs.length], ["Est. Cost", `$${total.toFixed(3)}`], ["Success", logs.length ? `${Math.round(ok/logs.length*100)}%` : "—"], ["Avg Latency", logs.length ? `${Math.round(logs.reduce((s,l)=>s+(l.latencyMs||0),0)/logs.length)}ms` : "—"]].map(([l, v], i) => (
-          <Card key={i}><Label style={{ marginBottom: "10px" }}>{l}</Label><div style={{ fontSize: "24px", fontWeight: 500, color: T.ink, fontFamily: mono }}>{v}</div></Card>
+        {[
+          ["Total Calls", logs.length, (n) => String(Math.round(n))],
+          ["Est. Cost", total, (n) => `$${n.toFixed(3)}`],
+          ["Success", logs.length ? Math.round(ok/logs.length*100) : null, (n) => n == null ? "—" : `${Math.round(n)}%`],
+          ["Avg Latency", logs.length ? Math.round(logs.reduce((s,l)=>s+(l.latencyMs||0),0)/logs.length) : null, (n) => n == null ? "—" : `${Math.round(n)}ms`],
+        ].map(([l, v, f], i) => (
+          <Card key={i}><Label style={{ marginBottom: "10px" }}>{l}</Label><div style={{ fontSize: "24px", fontWeight: 500, color: T.ink, fontFamily: mono }}>{v == null ? "—" : <AnimatedNumber value={v} format={f} />}</div></Card>
         ))}
       </div>
       <Card>
         <Label style={{ marginBottom: "12px" }}>Run Log</Label>
-        {logs.length === 0 ? <div style={{ fontSize: "13px", color: T.faint, textAlign: "center", padding: "24px 0" }}>No calls logged. Hit "Test log" to verify tracking works.</div> : (
+        {logs.length === 0 ? <EmptyState compact icon="chart" title="No calls logged yet" sub={'Hit "Test log" to verify tracking works — every Claude call shows up here.'} /> : (
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
             {logs.slice(0, 30).map((l, i) => isMobile ? (
               <div key={i} style={{ padding: "9px 2px", borderBottom: i < 29 ? `1px solid ${T.line}` : "none" }}>
@@ -1391,6 +1446,30 @@ export default function App() {
   const [articles, setArticles] = useState([]);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // Palette → view handoff: bumping a counter tells the target view to open
+  // its composer. A counter (not a flag) so it works even when you're already
+  // on that view; the view clears it after consuming so a later remount
+  // (navigate away and back) doesn't re-open the composer uninvited.
+  const [createSignal, setCreateSignal] = useState({ studio: 0, seo: 0, creators: 0 });
+  const signalCreate = (key) => setCreateSignal(s => ({ ...s, [key]: s[key] + 1 }));
+  const clearSignal = useCallback((key) => setCreateSignal(s => (s[key] === 0 ? s : { ...s, [key]: 0 })), []);
+  const toast = useToast();
+
+  // Cmd/Ctrl+K opens the command palette from anywhere. Skips while typing in
+  // a field so it never hijacks a keystroke mid-script or mid-article.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "k") return;
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      e.preventDefault();
+      setPaletteOpen((o) => !o);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Auth gate — this app had none before. Same pattern as Board Room:
   // check for an existing Supabase session on load, and keep listening for
@@ -1407,6 +1486,7 @@ export default function App() {
   // just return empty results once RLS requires authentication anyway.
   useEffect(() => {
     if (!supabase || !session?.user) return;
+    setDataLoading(true);
     (async () => {
       const [{ data: cr, error: crErr }, { data: sh, error: shErr }, { data: ar, error: arErr }] = await Promise.all([
         supabase.from("creators").select("*").order("created_at", { ascending: false }),
@@ -1416,10 +1496,14 @@ export default function App() {
       if (crErr) console.warn("[App] creators load failed:", crErr.message);
       if (shErr) console.warn("[App] shorts load failed:", shErr.message);
       if (arErr) console.warn("[App] articles load failed:", arErr.message);
+      const failed = [crErr && "creators", shErr && "Shorts", arErr && "articles"].filter(Boolean);
+      if (failed.length) toast.push(`Couldn't load ${failed.join(", ")} — check your connection and refresh.`, { tone: "error" });
       setCreators(cr || []);
       setShorts(sh || []);
       setArticles(ar || []);
+      setDataLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id]);
 
   const addArticle = async (a) => {
@@ -1436,12 +1520,49 @@ export default function App() {
 
   const TABS = ["mission", "creators", "studio", "seo", "agents", "ops"];
 
-  if (!authChecked) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontSize: 13, background: "#F4F5F8" }}>Loading…</div>;
+  // Sliding tab indicator — measured from the active tab's DOM position so the
+  // white pill glides between tabs instead of teleporting.
+  const tabRefs = useRef({});
+  const [tabIndicator, setTabIndicator] = useState({ left: 0, width: 0, ready: false });
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = tabRefs.current[view];
+      if (!el) return;
+      setTabIndicator({ left: el.offsetLeft, width: el.offsetWidth, ready: true });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [view, isMobile, authChecked, session]);
+
+  // Command palette actions — tabs, quick creates, live records. Rebuilt each
+  // render; the list is small and the handlers aren't stable refs anyway.
+  const paletteActions = (() => {
+    const acts = [];
+    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", agents: "Agents", ops: "Ops" };
+    TABS.forEach(t => acts.push({ id: `nav_${t}`, group: "Go to", icon: "→", label: TAB_LABELS[t] || t, run: () => setView(t) }));
+    acts.push({ id: "act_short", group: "Create", icon: "✦", label: "New Short", sub: "Generate a full Shorts package", run: () => { signalCreate("studio"); setView("studio"); } });
+    acts.push({ id: "act_article", group: "Create", icon: "✦", label: "New Article", sub: "Draft an SEO article into review", run: () => { signalCreate("seo"); setView("seo"); } });
+    acts.push({ id: "act_creator", group: "Create", icon: "+", label: "Add Creator", sub: "Add a YouTube creator to the pipeline", run: () => { signalCreate("creators"); setView("creators"); } });
+    acts.push({ id: "act_pass", group: "Action", icon: "⚡", label: "Run engine pass now", run: () => { sm.set("engine_force_pass", true); eng.set({ running: true }); setView("agents"); } });
+    creators.slice(0, 200).forEach(c => c.channel_name && acts.push({ id: `cr_${c.id}`, group: "Creator", icon: "▸", label: c.channel_name, sub: `${fmtSubs(c.subscriber_count)} subs · ${c.stage || "prospected"}`, run: () => setView("creators") }));
+    shorts.slice(0, 200).forEach(s => acts.push({ id: `sh_${s.id}`, group: "Short", icon: "▸", label: s.title || s.topic || "Untitled Short", sub: s.stage, run: () => setView("studio") }));
+    articles.slice(0, 100).forEach(a => acts.push({ id: `ar_${a.id}`, group: "Article", icon: "▸", label: a.title_tag || a.keyword || "Untitled", sub: a.stage, run: () => setView("seo") }));
+    return acts;
+  })();
+
+  if (!authChecked) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F5F8" }}>
+      <div style={{ width: "32px", height: "32px", border: "2px solid rgba(0,0,0,0.08)", borderTopColor: T.green, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
   if (!session) return <LoginScreen />;
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: isMobile ? "calc(60px + env(safe-area-inset-bottom))" : 0 }}>
       <AgentEngine creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />
       <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
@@ -1449,19 +1570,27 @@ export default function App() {
             <span style={{ fontSize: "13px", fontWeight: 800, color: "#06281C", letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne }}>Zero To Secure</span>
           </span>
           {!isMobile && (
-            <div style={{ display: "flex", gap: "2px", background: "rgba(15,23,42,0.04)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid rgba(15,23,42,0.04)` }}>
+            <div style={{ display: "flex", gap: "2px", background: "rgba(15,23,42,0.04)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid rgba(15,23,42,0.04)`, position: "relative" }}>
+              {tabIndicator.ready && (
+                <div style={{ position: "absolute", top: "3px", bottom: "3px", left: `${tabIndicator.left}px`, width: `${tabIndicator.width}px`, background: "#FFFFFF", borderRadius: "7px", boxShadow: "0 1px 2px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.06)", transition: `left ${M.durBase} ${M.easeSpring}, width ${M.durBase} ${M.easeSpring}`, zIndex: 0 }} />
+              )}
               {TABS.map(t => (
-                <button key={t} onClick={() => setView(t)} style={{ padding: "5px 15px", background: view === t ? "#FFFFFF" : "transparent", border: "none", borderRadius: "7px", color: view === t ? "#0B1220" : "#8A97A8", fontSize: "11px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: syne, boxShadow: view === t ? "0 1px 2px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.06)" : "none" }}>{t}</button>
+                <button key={t} ref={el => { tabRefs.current[t] = el; }} onClick={() => setView(t)} style={{ position: "relative", zIndex: 1, padding: "5px 15px", background: "transparent", border: "none", borderRadius: "7px", color: view === t ? "#0B1220" : "#8A97A8", fontSize: "11px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: syne, transition: `color ${M.durBase} ${M.easeStd}` }}>{t}</button>
               ))}
             </div>
           )}
         </div>
-        {!isMobile && <button onClick={() => supabase?.auth.signOut()} style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 7, color: T.sub, fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: syne }}>Sign out</button>}
+        {!isMobile && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button onClick={() => setPaletteOpen(true)} title="Command palette (⌘K)" style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 7, color: T.faint, fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: mono }}>⌘K</button>
+            <button onClick={() => supabase?.auth.signOut()} style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 7, color: T.sub, fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: syne }}>Sign out</button>
+          </div>
+        )}
       </div>
-      {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} isMobile={isMobile} />}
-      {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} />}
-      {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} />}
-      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} />}
+      {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} isMobile={isMobile} loading={dataLoading} />}
+      {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.creators} onSignalConsumed={() => clearSignal("creators")} />}
+      {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} />}
+      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.seo} onSignalConsumed={() => clearSignal("seo")} />}
       {view === "agents" && <AgentsView isMobile={isMobile} />}
       {view === "ops" && <OpsView isMobile={isMobile} />}
       {isMobile && <BottomNav view={view} setView={setView} tabs={TABS} />}
