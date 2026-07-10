@@ -3,3 +3,11 @@ dist
 dist.zip
 .env
 .env.*
+
+# factory — footage/renders are huge and per-machine; the tool itself is tracked
+factory/projects/*
+!factory/projects/.gitkeep
+factory/briefs/
+factory/.venv/
+__pycache__/
+*.pyc

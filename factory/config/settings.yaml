@@ -1,0 +1,79 @@
+# ============================================================
+# shorts-factory settings
+# Per-project overrides: drop an `overrides.yaml` with the same
+# structure inside a project folder (the revision loop writes
+# caption-style overrides there automatically).
+# ============================================================
+
+# LLM (used for clip selection, cut tightening, pop-ups, packaging, revisions)
+model: claude-sonnet-4-6      # any Anthropic model string; see docs.claude.com
+temperature: 0.4
+package_temperature: 0.7      # packaging copy benefits from a little more heat
+
+# Transcription (faster-whisper, runs locally)
+whisper_model: small          # tiny | base | small | medium | large-v3
+whisper_device: cpu           # cpu | cuda
+whisper_compute: int8         # int8 (cpu) | float16 (gpu)
+language: en                  # set to null for auto-detect
+
+brand:
+  name: Zero To Secure
+  accent: "#FFB13B"           # EDIT ME -- single accent color, used for caption highlight + graphics
+  dark: "#101114"             # near-black used for text-pop pills
+  light: "#F4F4F2"
+
+output:
+  width: 1080
+  height: 1920
+  fps: 30
+  draft_crf: 26               # fast/ugly-ish, fine for review
+  draft_preset: veryfast
+  final_crf: 18
+  final_preset: slow
+  segment_crf: 18          # intermediate segment quality (roughcut building blocks)
+  segment_preset: fast     # raise crf / use ultrafast on slow machines
+  audio_bitrate: 192k
+  loudnorm: "I=-14:TP=-1.5:LRA=11"   # YouTube-friendly loudness
+
+clip:
+  min_seconds: 15
+  max_seconds: 45
+  candidates: 3               # how many candidate clips the selector proposes
+
+cut:
+  max_silence: 0.60           # word gaps longer than this get tightened...
+  keep_gap: 0.22              # ...down to this much breathing room
+  edge_pad: 0.04              # padding around cut boundaries so words never clip
+  min_segment: 0.40           # kept segments shorter than this get dropped
+  join_gap: 0.12              # kept segments closer than this get merged (avoids micro jump cuts)
+  max_removed_fraction: 0.45  # sanity ceiling on how much of the window can be cut
+
+reframe:
+  mode: auto                  # auto (face detect) | center | offset
+  offset_x: 0.5               # 0..1 horizontal center of the crop when mode=offset
+  samples: 5                  # frames sampled for face detection in auto mode
+
+captions:
+  font: "Montserrat ExtraBold"   # ASS family name; put the .ttf in assets/fonts (see assets/fonts/GET_FONTS.md)
+  font_size: 92                  # px at 1080x1920
+  uppercase: true
+  group_max_words: 3             # words shown per caption group
+  group_max_gap: 0.50            # start a new group if the speaker pauses this long
+  y_pos: 0.72                    # vertical anchor as fraction of height (keeps clear of Shorts UI)
+  outline: 8
+  shadow: 0
+  base_color: "#FFFFFF"
+  highlight_color: "#FFB13B"     # spoken-word highlight; usually = brand.accent
+  hold_tail: 0.12                # how long the last word of a group lingers
+
+popups:
+  max_per_30s: 3                # restraint budget; the pop-ups prompt enforces this
+  min_duration: 1.5
+  default_duration: 2.2
+  fade: 0.15
+  caption_zone: [0.58, 0.86]    # y-band (fraction of height) pop-ups must keep clear of
+
+paths:
+  fonts_dir: assets/fonts
+  graphics_dir: assets/graphics
+  projects_dir: projects

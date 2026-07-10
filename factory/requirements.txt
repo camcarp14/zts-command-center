@@ -1,0 +1,13 @@
+# Core
+faster-whisper>=1.0.0        # local transcription with word-level timestamps
+anthropic>=0.40.0            # LLM calls (optional -- pipeline has a no-API manual mode)
+pillow>=10.0.0               # overlay graphics (text pops, arrows, circles)
+pyyaml>=6.0
+
+# Optional but recommended
+opencv-python-headless>=4.9  # auto face-centered 9:16 crop (falls back to center crop without it)
+
+# System dependency (NOT pip): ffmpeg 6.x with libass
+#   macOS:  brew install ffmpeg
+#   Ubuntu: sudo apt install ffmpeg
+#   Windows: use WSL2 (paths with drive letters break filtergraphs)

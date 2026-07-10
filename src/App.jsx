@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Fra
 import { supabase } from "./supabaseClient";
 import DOMPurify from "dompurify";
 import { AnimatedNumber, EmptyState, SkeletonLine, SkeletonRows, SkeletonBoard, CommandPalette, useToast, M } from "./ui.jsx";
+import { FactoryPanel, sendBriefToFactory } from "./factory.jsx";
 
 // ════════════════════════════════════════════════════════════════════════════
 // ZERO TO SECURE — Creator outreach + Shorts production command center.
@@ -310,6 +311,42 @@ const SHORT_STAGES = [
   { key: "posted", label: "Posted", color: "#7C3AED" },
 ];
 
+// ─── Stage stepping — one helper for every pipeline in the app ────────────────
+// Returns the stage one step forward/back, or null at the ends. Every kanban
+// (creators, shorts, articles) moves through its stages with the same ‹ ›
+// controls, in both directions.
+function stepStage(stages, current, dir) {
+  const order = stages.map(s => s.key);
+  const i = order.indexOf(current);
+  if (i === -1) return dir > 0 ? order[0] : null;
+  const next = i + dir;
+  if (next < 0 || next >= order.length) return null;
+  return order[next];
+}
+
+// Compact ‹ › stepper rendered on kanban cards. stopPropagation so steppers
+// never fight the card's own onClick (open detail).
+function StageStepper({ stages, current, onMove, blockForward = false, blockBack = false, forwardTitle }) {
+  const back = blockBack ? null : stepStage(stages, current, -1);
+  const fwd = blockForward ? null : stepStage(stages, current, +1);
+  const fwdLabel = fwd ? stages.find(s => s.key === fwd)?.label : null;
+  const btn = (enabled) => ({
+    padding: "4px 9px", background: "transparent", border: `1px solid ${enabled ? T.line : "rgba(15,23,42,0.03)"}`,
+    borderRadius: "7px", fontSize: "10px", fontWeight: 700, color: enabled ? T.sub : "rgba(15,23,42,0.15)",
+    cursor: enabled ? "pointer" : "default", fontFamily: syne,
+  });
+  return (
+    <div style={{ display: "flex", gap: "5px", marginTop: "8px" }} onClick={e => e.stopPropagation()}>
+      <button title={back ? `Back to ${stages.find(s => s.key === back)?.label}` : "Already at the first stage"}
+        disabled={!back} onClick={() => back && onMove(back)} style={btn(!!back)}>‹</button>
+      <button title={fwd ? `Move to ${fwdLabel}` : forwardTitle || "Already at the last stage"}
+        disabled={!fwd} onClick={() => fwd && onMove(fwd)} style={{ ...btn(!!fwd), flex: 1 }}>
+        {fwd ? `${fwdLabel} ›` : stages[stages.length - 1].key === current ? "✓" : "—"}
+      </button>
+    </div>
+  );
+}
+
 // The publish checklist — every Short runs the same pre-flight before going live.
 const PUBLISH_CHECKLIST = [
   "Script recorded & edited",
@@ -580,6 +617,8 @@ function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSi
                         <div style={{ display: "inline-block", fontSize: "8px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{t.label}</div>
                         <div style={{ fontSize: "12px", fontWeight: 600, color: T.ink, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.title || s.topic || "Untitled"}</div>
                         {s.hook && <div style={{ fontSize: "10px", color: T.faint, marginTop: "4px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.hook}</div>}
+                        <StageStepper stages={SHORT_STAGES} current={stage.key}
+                          onMove={(next) => updateShort(s.id, { stage: next, ...(next === "posted" ? { posted_at: new Date().toISOString() } : stage.key === "posted" ? { posted_at: null } : {}) })} />
                       </Card>
                       </div>
                     );
@@ -591,6 +630,11 @@ function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSi
           })}
         </div>
       )}
+
+      {/* Factory — the production half of the Studio. shorts-factory (factory/
+          in this repo) turns filmed footage into the finished 9:16 Short; this
+          rail shows its live project state whenever the local bridge is up. */}
+      <FactoryPanel isMobile={isMobile} />
 
       {composing && <ComposeModal isMobile={isMobile} onClose={() => setComposing(false)} onCreate={addShort} />}
       {openShort && <ShortDetail short={openShort} isMobile={isMobile} onClose={() => setOpenShort(null)} onUpdate={updateShort} onDelete={delShort} />}
@@ -658,11 +702,16 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
     else toast.push("Regeneration failed — try again in a moment.", { tone: "error" });
   };
   const toggleCheck = (item) => { const next = { ...checklist, [item]: !checklist[item] }; onUpdate(short.id, { checklist: next }); };
-  const advance = () => {
-    const order = SHORT_STAGES.map(s => s.key);
-    const i = order.indexOf(short.stage);
-    const nextStage = order[Math.min(i + 1, order.length - 1)];
-    onUpdate(short.id, { stage: nextStage, ...(nextStage === "posted" ? { posted_at: new Date().toISOString() } : {}) });
+  const moveStage = (dir) => {
+    const next = stepStage(SHORT_STAGES, short.stage, dir);
+    if (!next) return;
+    onUpdate(short.id, { stage: next, ...(next === "posted" ? { posted_at: new Date().toISOString() } : short.stage === "posted" ? { posted_at: null } : {}) });
+  };
+  const [sendingBrief, setSendingBrief] = useState(false);
+  const sendToFactory = async () => {
+    setSendingBrief(true);
+    await sendBriefToFactory(short, toast);
+    setSendingBrief(false);
   };
   const copyAll = () => {
     const text = `TITLE: ${short.title || ""}\n\nHOOK: ${short.hook || ""}\n\nSCRIPT:\n${short.script || ""}\n\nDESCRIPTION:\n${short.description || ""}\n\nTAGS: ${(short.tags||[]).join(", ")}\n\nPINNED COMMENT: ${short.pinned_comment || ""}`;
@@ -749,9 +798,11 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
 
         <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
           <button onClick={() => onDelete(short.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {short.script && <Btn onClick={sendToFactory} disabled={sendingBrief} title="Hand this Short's script + packaging to the shorts-factory production pipeline">{sendingBrief ? "Sending…" : "⇢ Factory"}</Btn>}
             <Btn onClick={copyAll}>Copy all</Btn>
-            {short.stage !== "posted" && <Btn primary onClick={advance}>{short.stage === "ready" ? "Mark posted →" : isMobile ? "Advance →" : "Advance stage →"}</Btn>}
+            {short.stage !== "idea" && <Btn onClick={() => moveStage(-1)} title={`Back to ${SHORT_STAGES.find(s => s.key === stepStage(SHORT_STAGES, short.stage, -1))?.label || ""}`}>‹ Back</Btn>}
+            {short.stage !== "posted" && <Btn primary onClick={() => moveStage(+1)}>{short.stage === "ready" ? "Mark posted →" : isMobile ? "Advance →" : "Advance stage →"}</Btn>}
           </div>
         </div>
     </ModalShell>
@@ -765,8 +816,31 @@ const CREATOR_STAGES = [
   { key: "replied", label: "Replied", color: "#EC4899" },
   { key: "collab", label: "Collab", color: "#0E9F6E" },
 ];
+
+// Collab pitch draft — the "Drafted" stage finally has a drafting mechanism.
+// One Haiku call, grounded in the creator's niche/size and the ZTS brand voice.
+async function generateCreatorPitch(creator) {
+  const v = creatorValue(creator);
+  const system = `You are Cameron, founder of Zero To Secure. ${ZTS_BRAND}
+
+You are writing a first-touch collab pitch email to a YouTube creator. Rules:
+- Reference their channel and niche specifically — show you actually watch.
+- The offer: a paid/affiliate collab featuring the ZTS metal seed-phrase backup kit (integration or dedicated Short), creative control stays with them.
+- Confident and peer-to-peer, never fawning. No "I hope this finds you well".
+- Under 130 words. Sign off: Cameron | Zero To Secure
+
+Respond ONLY with valid JSON, no markdown fences: {"subject": "...", "body": "..."}`;
+  const userMsg = `Channel: ${creator.channel_name}
+Subscribers: ${fmtSubs(creator.subscriber_count)}
+Niche: ${creator.niche || "unknown"} (fit: ${v.fitLabel}, tier: ${v.tier})
+${creator.description ? `About them: ${creator.description}` : ""}`;
+  const raw = await callClaude({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 500, fn: "creator_pitch" });
+  if (!raw) return null;
+  try { return JSON.parse(raw.replace(/```json|```/g, "").trim()); } catch { return null; }
+}
 function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0, onSignalConsumed }) {
   const [adding, setAdding] = useState(false);
+  const [openCreator, setOpenCreator] = useState(null);
   const [sortBy, setSortBy] = useState("value");
   const toast = useToast();
 
@@ -776,9 +850,31 @@ function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0
 
   const move = async (id, stage) => {
     setCreators(prev => prev.map(c => c.id === id ? { ...c, stage, status: stage } : c)); // optimistic
+    if (openCreator?.id === id) setOpenCreator(prev => ({ ...prev, stage, status: stage }));
     if (!supabase) return;
     const { error: err } = await supabase.from("creators").update({ stage, status: stage }).eq("id", id);
     if (err) { console.warn("[CreatorsView] stage update failed:", err.message); toast.push("Stage change didn't save — " + err.message, { tone: "error" }); }
+  };
+
+  // localOnly: update React state without touching Supabase — used when the
+  // caller already persisted (or deliberately persisted elsewhere, e.g. the
+  // pitch's localStorage fallback when the columns don't exist).
+  const updateCreator = async (id, patch, { localOnly = false } = {}) => {
+    setCreators(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)); // optimistic
+    if (openCreator?.id === id) setOpenCreator(prev => ({ ...prev, ...patch }));
+    if (localOnly || !supabase) return true;
+    const { error: err } = await supabase.from("creators").update(patch).eq("id", id);
+    if (err) { console.warn("[CreatorsView] update failed:", err.message); toast.push("Change didn't save — " + err.message, { tone: "error" }); return false; }
+    return true;
+  };
+
+  const delCreator = async (id) => {
+    setCreators(prev => prev.filter(c => c.id !== id)); // optimistic
+    setOpenCreator(null);
+    sm.del(`pitch_${id}`); // clear any locally-stored pitch for the deleted row
+    if (!supabase) return;
+    const { error: err } = await supabase.from("creators").delete().eq("id", id);
+    if (err) { console.warn("[CreatorsView] delete failed:", err.message); toast.push("Delete didn't stick — " + err.message, { tone: "error" }); }
   };
 
   const sorted = [...creators].sort((a, b) => {
@@ -834,16 +930,16 @@ function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0
                   {items.map((c, idx) => {
                     const v = creatorValue(c);
                     const tierColor = v.tier === "Prime" ? T.green : v.tier === "Strong" ? T.blue : v.tier === "Fit" ? T.amber : T.faint;
-                    const nextStage = CREATOR_STAGES[Math.min(CREATOR_STAGES.findIndex(s => s.key === stage.key) + 1, CREATOR_STAGES.length - 1)];
                     return (
                       <div key={c.id} style={{ animation: `cardIn 0.3s ${M.easeOut} both`, animationDelay: `${Math.min(idx, 8) * 30}ms` }}>
-                      <Card style={{ padding: "12px 13px", borderLeft: `3px solid ${tierColor}` }}>
+                      <Card hover onClick={() => setOpenCreator(c)} style={{ padding: "12px 13px", borderLeft: `3px solid ${tierColor}` }}>
                         <div style={{ fontSize: "12px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{c.channel_name}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "10px", color: T.sub, fontFamily: mono }}>{fmtSubs(c.subscriber_count)} subs</span>
                           <span style={{ fontSize: "9px", fontWeight: 700, color: tierColor, background: tierColor + "15", padding: "1px 6px", borderRadius: "5px", fontFamily: syne }}>{v.tier} · {v.fitLabel}</span>
+                          {(c.pitch_body || sm.get(`pitch_${c.id}`)) && <span title="Collab pitch drafted" style={{ fontSize: "9px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "1px 6px", borderRadius: "5px", fontFamily: syne }}>✦ pitch</span>}
                         </div>
-                        {stage.key !== "collab" && <button onClick={() => move(c.id, nextStage.key)} style={{ marginTop: "8px", width: "100%", padding: "5px", background: "transparent", border: `1px solid ${T.line}`, borderRadius: "7px", fontSize: "10px", fontWeight: 700, color: T.sub, cursor: "pointer", fontFamily: syne }}>→ {nextStage.label}</button>}
+                        <StageStepper stages={CREATOR_STAGES} current={stage.key} onMove={(next) => move(c.id, next)} />
                       </Card>
                       </div>
                     );
@@ -868,7 +964,152 @@ function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0
         if (data?.[0]) { setCreators(prev => [data[0], ...prev]); toast.push(`${c.channel_name} added to the pipeline.`, { tone: "success" }); }
         setAdding(false);
       }} />}
+      {openCreator && <CreatorDetail creator={openCreator} isMobile={isMobile} onClose={() => setOpenCreator(null)} onUpdate={updateCreator} onDelete={delCreator} onMove={move} />}
     </div>
+  );
+}
+
+// Creator detail — edit, delete, move stages, and draft the collab pitch.
+// The pitch persists to the creators row when the columns exist; if the
+// schema doesn't have them yet, it falls back to local storage so the
+// feature works either way (the card badge reads from the same field).
+function CreatorDetail({ creator, onClose, onUpdate, onDelete, onMove, isMobile }) {
+  const [editing, setEditing] = useState(false);
+  const [f, setF] = useState({ channel_name: creator.channel_name || "", subscriber_count: String(creator.subscriber_count || ""), niche: creator.niche || "", engagement_rate: creator.engagement_rate != null ? String(creator.engagement_rate * 100) : "", description: creator.description || "" });
+  const [pitch, setPitch] = useState(() => (creator.pitch_subject || creator.pitch_body) ? { subject: creator.pitch_subject || "", body: creator.pitch_body || "" } : sm.get(`pitch_${creator.id}`));
+  const [drafting, setDrafting] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const toast = useToast();
+  const v = creatorValue(creator);
+  const tierColor = v.tier === "Prime" ? T.green : v.tier === "Strong" ? T.blue : v.tier === "Fit" ? T.amber : T.faint;
+  const stage = creator.stage || "prospected";
+  const stageMeta = CREATOR_STAGES.find(s => s.key === stage) || CREATOR_STAGES[0];
+  const hPad = isMobile ? "18px" : "24px";
+  const set = (k, val) => setF(p => ({ ...p, [k]: val }));
+
+  const saveEdit = async () => {
+    const patch = {
+      channel_name: f.channel_name.trim() || creator.channel_name,
+      subscriber_count: Number(f.subscriber_count) || 0,
+      niche: f.niche.trim(),
+      engagement_rate: f.engagement_rate ? Number(f.engagement_rate) / 100 : null,
+      description: f.description.trim(),
+    };
+    if (await onUpdate(creator.id, patch)) toast.push("Creator updated.", { tone: "success" });
+    setEditing(false);
+  };
+
+  const savePitch = async (p) => {
+    setPitch(p);
+    // Try the DB first; if the pitch columns don't exist in the schema the
+    // update fails and the pitch lives in localStorage instead. Either way the
+    // in-memory row is patched localOnly — persistence already happened here,
+    // so onUpdate must not retry Supabase (that would error-toast every blur).
+    if (supabase) {
+      const { error: err } = await supabase.from("creators").update({ pitch_subject: p.subject, pitch_body: p.body }).eq("id", creator.id);
+      if (!err) { onUpdate(creator.id, { pitch_subject: p.subject, pitch_body: p.body }, { localOnly: true }); return; }
+    }
+    sm.set(`pitch_${creator.id}`, p);
+    onUpdate(creator.id, { pitch_subject: p.subject, pitch_body: p.body }, { localOnly: true });
+  };
+
+  const draftPitch = async () => {
+    setDrafting(true);
+    const p = await generateCreatorPitch(creator);
+    setDrafting(false);
+    if (p) { await savePitch(p); if (stage === "prospected") onMove(creator.id, "drafted"); toast.push("Collab pitch drafted — edit it, then copy into your email client.", { tone: "success" }); }
+    else toast.push("Pitch generation failed — try again in a moment.", { tone: "error" });
+  };
+
+  const copyPitch = () => {
+    if (!pitch) return;
+    try { navigator.clipboard.writeText(`Subject: ${pitch.subject}\n\n${pitch.body}`); toast.push("Pitch copied.", { tone: "success" }); } catch {}
+  };
+
+  const input = { width: "100%", padding: "9px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, marginBottom: "8px" };
+  const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" };
+
+  return (
+    <ModalShell onClose={onClose} isMobile={isMobile} width={560}>
+      <div style={{ padding: `18px ${hPad}`, borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexShrink: 0 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px", flexWrap: "wrap", marginBottom: "5px" }}>
+            <span style={{ fontSize: "9px", fontWeight: 700, color: stageMeta.color, background: stageMeta.color + "15", padding: "2px 7px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne }}>{stageMeta.label}</span>
+            <span style={{ fontSize: "9px", fontWeight: 700, color: tierColor, background: tierColor + "15", padding: "2px 7px", borderRadius: "5px", fontFamily: syne }}>{v.tier} · {v.fitLabel}</span>
+          </div>
+          <div style={{ fontSize: "16px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{creator.channel_name}</div>
+          <div style={{ fontSize: "11px", color: T.faint, fontFamily: mono, marginTop: "2px" }}>{fmtSubs(creator.subscriber_count)} subs · weighted reach {fmtSubs(v.score)}</div>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+      </div>
+
+      <div style={{ padding: `16px ${hPad}`, overflowY: "auto" }}>
+        {/* Stage movement — full stepper, both directions */}
+        <Label style={{ marginBottom: "8px" }}>Pipeline stage</Label>
+        <div style={{ display: "flex", gap: "5px", marginBottom: "18px", flexWrap: "wrap" }}>
+          {CREATOR_STAGES.map(s => (
+            <button key={s.key} onClick={() => s.key !== stage && onMove(creator.id, s.key)}
+              style={{ padding: "6px 12px", background: s.key === stage ? s.color + "15" : "transparent", border: `1px solid ${s.key === stage ? s.color + "50" : T.line}`, borderRadius: "8px", fontSize: "10px", fontWeight: 700, color: s.key === stage ? s.color : T.faint, cursor: s.key === stage ? "default" : "pointer", fontFamily: syne }}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Profile — view or edit */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+          <Label>Profile</Label>
+          {!editing && <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", color: T.greenDeep, fontSize: "10px", fontWeight: 700, cursor: "pointer", fontFamily: syne }}>edit</button>}
+        </div>
+        {editing ? (
+          <div style={{ marginBottom: "16px" }}>
+            <input placeholder="Channel name" value={f.channel_name} onChange={e => set("channel_name", e.target.value)} style={input} />
+            <input placeholder="Subscriber count" value={f.subscriber_count} onChange={e => set("subscriber_count", e.target.value)} style={input} />
+            <input placeholder="Niche" value={f.niche} onChange={e => set("niche", e.target.value)} style={input} />
+            <input placeholder="Engagement rate % (optional)" value={f.engagement_rate} onChange={e => set("engagement_rate", e.target.value)} style={input} />
+            <textarea placeholder="Channel description" value={f.description} onChange={e => set("description", e.target.value)} style={{ ...input, minHeight: "56px", resize: "vertical" }} />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Btn primary onClick={saveEdit} style={{ flex: 1, padding: "9px" }}>Save</Btn>
+              <Btn onClick={() => setEditing(false)} style={{ padding: "9px 16px" }}>Cancel</Btn>
+            </div>
+          </div>
+        ) : (
+          <div style={{ ...box, marginBottom: "16px" }}>
+            {[creator.niche && `Niche: ${creator.niche}`, creator.engagement_rate != null && `Engagement: ${(creator.engagement_rate * 100).toFixed(1)}%`, creator.description].filter(Boolean).join("\n") || "No profile details yet — hit edit."}
+          </div>
+        )}
+
+        {/* Collab pitch — the "Drafted" stage's actual draft */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+          <Label>Collab pitch</Label>
+          <button onClick={draftPitch} disabled={drafting} style={{ background: "none", border: "none", color: drafting ? T.faint : T.greenDeep, fontSize: "10px", fontWeight: 700, cursor: drafting ? "default" : "pointer", fontFamily: syne }}>
+            {drafting ? "✦ drafting…" : pitch ? "↻ redraft" : "✦ draft with AI"}
+          </button>
+        </div>
+        {pitch ? (
+          <div style={{ marginBottom: "6px" }}>
+            {/* Edits stay local per keystroke; persistence happens on blur. */}
+            <input value={pitch.subject} onChange={e => setPitch(p => ({ ...p, subject: e.target.value }))} onBlur={() => savePitch(pitch)} style={{ ...input, fontWeight: 600 }} />
+            <textarea value={pitch.body} onChange={e => setPitch(p => ({ ...p, body: e.target.value }))} onBlur={() => savePitch(pitch)} rows={7} style={{ ...input, resize: "vertical", lineHeight: 1.6, marginBottom: "8px" }} />
+            <Btn onClick={copyPitch} style={{ padding: "8px 16px" }}>Copy pitch</Btn>
+          </div>
+        ) : (
+          <div style={{ ...box, color: T.faint }}>No pitch yet. "Draft with AI" writes a first-touch collab email grounded in their niche and the ZTS voice — drafting also moves them to Drafted.</div>
+        )}
+      </div>
+
+      <div style={{ padding: `13px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+        ) : (
+          <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "11px", color: T.red }}>Delete {creator.channel_name}?</span>
+            <button onClick={() => onDelete(creator.id)} style={{ padding: "5px 12px", background: T.red, border: "none", borderRadius: "7px", color: "#FFF", fontSize: "10px", fontWeight: 700, cursor: "pointer", fontFamily: syne }}>Yes, delete</button>
+            <button onClick={() => setConfirmDel(false)} style={{ background: "none", border: "none", color: T.faint, fontSize: "11px", cursor: "pointer" }}>Keep</button>
+          </span>
+        )}
+        <Btn onClick={onClose} style={{ padding: "9px 18px" }}>Done</Btn>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -1114,6 +1355,16 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openS
                       {a.auto_drafted && <div style={{ display: "inline-block", fontSize: "8px", fontWeight: 700, color: T.greenDeep, background: "rgba(14,159,110,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>Agent draft</div>}
                       <div style={{ fontSize: "12px", fontWeight: 600, color: T.ink, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.title_tag || a.keyword || "Untitled"}</div>
                       {a.target_keyword && <div style={{ fontSize: "10px", color: T.faint, marginTop: "4px", fontFamily: mono }}>{a.target_keyword}{a.word_count ? ` · ${a.word_count}w` : ""}</div>}
+                      {/* Arrows stop at Approved — actually publishing to Shopify
+                          stays behind the explicit button in the detail modal.
+                          Published articles are frozen: stepping one back would
+                          leave a stale published_url and invite a duplicate
+                          publish (publishToShopify always creates a new post). */}
+                      <StageStepper stages={ARTICLE_STAGES} current={stage.key}
+                        blockForward={stage.key === "approved" || stage.key === "published"}
+                        blockBack={stage.key === "published"}
+                        forwardTitle={stage.key === "approved" ? "Publishing happens in the article view — open it and hit Publish" : undefined}
+                        onMove={(next) => update(a.id, { stage: next, ...(next === "approved" ? { approved_at: new Date().toISOString() } : {}) })} />
                     </Card>
                     </div>
                   ))}
@@ -1178,9 +1429,20 @@ function ComposeArticleModal({ keywords, onClose, onCreate, isMobile }) {
 function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
   const [publishing, setPublishing] = useState(false);
   const [pubResult, setPubResult] = useState(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const toast = useToast();
   const stage = article.stage || "idea";
   const approve = () => onUpdate(article.id, { stage: "approved", approved_at: new Date().toISOString() });
   const reject = () => onUpdate(article.id, { stage: "idea", rejected: true });
+  // Recovery path for ideas (failed generations land here with no article body).
+  const regenerate = async () => {
+    setRegenerating(true);
+    const kw = article.target_keyword || article.keyword || "";
+    const pkg = await generateArticle({ keyword: kw });
+    setRegenerating(false);
+    if (pkg) { onUpdate(article.id, { ...pkg, stage: "review" }); toast.push(`Draft ready for review: "${pkg.title_tag}"`, { tone: "success" }); }
+    else toast.push("Drafting failed again — try in a moment.", { tone: "error" });
+  };
   const publish = async () => {
     setPublishing(true);
     try {
@@ -1219,9 +1481,13 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
         </div>
         <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
           <button onClick={() => onDelete(article.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {stage === "idea" && <Btn primary onClick={regenerate} disabled={regenerating}>{regenerating ? "Drafting…" : "✦ Generate draft"}</Btn>}
             {stage === "review" && <><Btn onClick={reject}>✕ Reject</Btn><Btn primary onClick={approve}>✓ Approve</Btn></>}
-            {stage === "approved" && <Btn primary onClick={publish} disabled={publishing}>{publishing ? "Publishing…" : "🚀 Publish to Shopify"}</Btn>}
+            {stage === "approved" && <>
+              <Btn onClick={() => onUpdate(article.id, { stage: "review" })} title="Send back for another look">‹ Back to review</Btn>
+              <Btn primary onClick={publish} disabled={publishing}>{publishing ? "Publishing…" : "🚀 Publish to Shopify"}</Btn>
+            </>}
             {stage === "published" && article.published_url && <a href={article.published_url} target="_blank" rel="noopener" style={{ fontSize: "12px", color: T.greenDeep, fontWeight: 700, textDecoration: "none", padding: "10px 16px" }}>View live ›</a>}
           </div>
         </div>
@@ -1241,8 +1507,8 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const recent = obs.getAll().slice(0, 6);
 
-  const Stat = ({ label, value, sub, accent, format }) => (
-    <Card><Label style={{ marginBottom: "10px" }}>{label}</Label><div style={{ fontSize: "26px", fontWeight: 500, color: accent || T.ink, fontFamily: mono, lineHeight: 1 }}>{typeof value === "number" ? <AnimatedNumber value={value} format={format} /> : value}</div>{sub && <div style={{ fontSize: "10px", color: T.faint, marginTop: "6px" }}>{sub}</div>}</Card>
+  const Stat = ({ label, value, sub, accent, format, onClick }) => (
+    <Card onClick={onClick} hover={!!onClick}><Label style={{ marginBottom: "10px" }}>{label}</Label><div style={{ fontSize: "26px", fontWeight: 500, color: accent || T.ink, fontFamily: mono, lineHeight: 1 }}>{typeof value === "number" ? <AnimatedNumber value={value} format={format} /> : value}</div>{sub && <div style={{ fontSize: "10px", color: T.faint, marginTop: "6px" }}>{sub}</div>}</Card>
   );
   const spanMobile = isMobile ? { gridColumn: "1 / -1" } : undefined;
 
@@ -1287,7 +1553,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
           </div>
           <div style={{ fontSize: "10px", color: T.amberDeep, marginTop: "12px", textAlign: "center", cursor: "pointer", fontWeight: 600 }} onClick={() => onNavigate("studio")}>Open Studio ›</div>
         </Card>
-        <Stat label="Ready to Post" value={sPipe.ready} sub={sPipe.ready > 0 ? "get them scheduled" : "none queued"} accent={sPipe.ready > 0 ? T.green : T.ink} />
+        <Stat label="Ready to Post" value={sPipe.ready} sub={sPipe.ready > 0 ? "get them scheduled" : "none queued"} accent={sPipe.ready > 0 ? T.green : T.ink} onClick={() => onNavigate("studio")} />
         <Stat label="AI Spend" value={obs.getAll().reduce((s,l) => s + (l.costEstimate||0), 0)} format={(n) => `$${n.toFixed(2)}`} sub={`${obs.getAll().length} calls`} />
       </div>
 
