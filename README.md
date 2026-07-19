@@ -8,6 +8,7 @@ Zero To Secure's operations tool — three pillars, one app:
 | **Creators** | YouTube-creator collab pipeline, auto-scored by niche fit — with AI collab-pitch drafting |
 | **Studio** | Shorts ideation (Claude drafts the full asset package) + the Factory production rail |
 | **SEO** | Article pipeline with an approval gate; publishes to the Shopify blog |
+| **DNA** | The living mind: a weighted node graph that compiles into the worker's prompt |
 | **Agents** | The heuristic agent engine — free heartbeat, gated synthesis |
 | **Ops** | Every Claude call: tokens, cost, latency, success |
 
@@ -36,6 +37,48 @@ run the CLI, and the project appears in the rail. With the bridge offline
 (including on the deployed site), the same handoff copies a complete brief to
 the clipboard instead. The bridge binds 127.0.0.1 only, is read-only apart from
 draft approval and brief drop-off, and never runs renders or spends API money.
+
+## ZTS DNA
+
+The **DNA** tab is the marketing machine's mind made visible and editable. It is a
+living neural graph — **nodes** are aspects of how ZTS thinks (its identity, the
+locked principles, what it knows, the signals it watches, the skills it can run,
+the goals it drives toward), wired together by weighted **synapses** (excitatory
+or tempering). Drag the canvas to explore it, double-click to grow a node,
+⇧-drag to wire one, and click any node or synapse to tune its weight, directive,
+region, or — for a skill — the model and token ceiling it runs on.
+
+**The graph *is* the prompt.** `compileGenome()` turns the node graph
+deterministically into a single system prompt: a locked governance charter first,
+then each region ordered by meaning, with each node's weight setting its emphasis
+(PRIMARY command → standing line → minor consideration) and every tempering
+synapse spelled out as an explicit "when these conflict, X wins" tension. Same
+graph ⇒ byte-identical prompt ⇒ the same `#hash` shown in the header. **⚡ Pulse**
+lets you type a question, watch the matching nodes fire across the canvas, read
+the exact compiled lines that lit, and optionally "Think it through" (a Haiku call
+on that very prompt). The compile-lens (Primary / Standing / Full) tunes how much
+of the mind those surfaces reveal — the worker always runs on the **Full** prompt.
+
+**The Worker drafts; it never publishes.** A built-in headless worker (mounted at
+app root, running only while ZTS is open in a tab) reads the compiled mind and
+works the pipeline one task per pass — drafting an SEO article into the **review**
+queue, scouting and ranking prime creators, compiling a daily strategy brief, or
+proposing new knowledge nodes for you to accept. Everything it produces lands in a
+review queue or the work log as a **draft**: it never posts a Short, publishes an
+article, or moves a creator past *contacted* on its own. The dock exposes the
+honest levers — a play/pause switch, per-task-type toggles, a tasks-per-hour and
+$/hour cap, and a live work log where hovering an entry replays its activation on
+the canvas. An optional **evening shift** arms the worker for a nightly window
+(e.g. 6–10pm) so drafts are waiting for morning review — same drafts-only rule
+applies; it simply runs on a schedule instead of a manual switch.
+
+The mind is portable: **Export JSON** downloads the full genome, **Import JSON**
+replaces it (rejected via a toast if it fails `validateGenome`), a **mutation
+history** records every edit, and **Reset to seed** restores the shipped ZTS
+doctrine. State lives in the same `zts_` localStorage namespace as the rest of the
+app — no new infrastructure — and the whole tab is built on the shared **light
+design system** (`src/ui.jsx` tokens, Syne / DM Mono, white glass over the ZTS
+canvas), so it looks and feels native next to every other tab.
 
 ## Stack
 

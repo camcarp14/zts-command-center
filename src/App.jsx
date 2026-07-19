@@ -3,6 +3,8 @@ import { supabase } from "./supabaseClient";
 import DOMPurify from "dompurify";
 import { AnimatedNumber, EmptyState, SkeletonLine, SkeletonRows, SkeletonBoard, CommandPalette, useToast, M } from "./ui.jsx";
 import { FactoryPanel, sendBriefToFactory } from "./factory.jsx";
+import { DnaView } from "./dna/DnaView.jsx";
+import { DnaWorker } from "./dna/dnaWorker.js";
 
 // ════════════════════════════════════════════════════════════════════════════
 // ZERO TO SECURE — Creator outreach + Shorts production command center.
@@ -211,6 +213,7 @@ const TAB_ICONS = {
   creators: (c) => <><circle cx="8.6" cy="7.8" r="2.5" /><polygon points="8.6,11.3 4.2,19 13,19" /><circle cx="16.6" cy="9.4" r="2.1" /><polygon points="16.6,12.4 13.3,19 19.9,19" /></>,
   studio: (c) => <><rect x="3.5" y="5.5" width="17" height="13" rx="2" /><polygon points="10,9.3 10,14.7 15,12" fill={c} stroke="none" /></>,
   seo: (c) => <><circle cx="10.3" cy="10.3" r="6" /><line x1="14.7" y1="14.7" x2="20" y2="20" /></>,
+  dna: (c) => <><circle cx="5.5" cy="8" r="2" /><circle cx="18.5" cy="6.5" r="2" /><circle cx="7.5" cy="18" r="2" /><circle cx="17" cy="17.5" r="2" /><line x1="7.4" y1="8.9" x2="16.6" y2="7.4" /><line x1="6.4" y1="9.8" x2="8.6" y2="16.2" /><line x1="9.4" y1="17.8" x2="15.1" y2="17.6" /></>,
   agents: (c) => <><circle cx="12" cy="5.5" r="2" /><circle cx="5.8" cy="17" r="2" /><circle cx="18.2" cy="17" r="2" /><line x1="12" y1="7.5" x2="7.2" y2="15.3" /><line x1="12" y1="7.5" x2="16.8" y2="15.3" /></>,
   ops: (c) => <polyline points="3,13 7,13 9,19 13,6 15,13 21,13" />,
 };
@@ -1784,7 +1787,7 @@ export default function App() {
     if (data?.[0]) setArticles(prev => [data[0], ...prev]);
   };
 
-  const TABS = ["mission", "creators", "studio", "seo", "agents", "ops"];
+  const TABS = ["mission", "creators", "studio", "seo", "dna", "agents", "ops"];
 
   // Sliding tab indicator — measured from the active tab's DOM position so the
   // white pill glides between tabs instead of teleporting.
@@ -1805,7 +1808,7 @@ export default function App() {
   // render; the list is small and the handlers aren't stable refs anyway.
   const paletteActions = (() => {
     const acts = [];
-    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", agents: "Agents", ops: "Ops" };
+    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", dna: "DNA", agents: "Agents", ops: "Ops" };
     TABS.forEach(t => acts.push({ id: `nav_${t}`, group: "Go to", icon: "→", label: TAB_LABELS[t] || t, run: () => setView(t) }));
     acts.push({ id: "act_short", group: "Create", icon: "✦", label: "New Short", sub: "Generate a full Shorts package", run: () => { signalCreate("studio"); setView("studio"); } });
     acts.push({ id: "act_article", group: "Create", icon: "✦", label: "New Article", sub: "Draft an SEO article into review", run: () => { signalCreate("seo"); setView("seo"); } });
@@ -1828,6 +1831,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: isMobile ? "calc(60px + env(safe-area-inset-bottom))" : 0 }}>
       <AgentEngine creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
+      <DnaWorker creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />
       <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -1857,6 +1861,7 @@ export default function App() {
       {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.creators} onSignalConsumed={() => clearSignal("creators")} />}
       {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} />}
       {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.seo} onSignalConsumed={() => clearSignal("seo")} />}
+      {view === "dna" && <DnaView creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />}
       {view === "agents" && <AgentsView isMobile={isMobile} />}
       {view === "ops" && <OpsView isMobile={isMobile} />}
       {isMobile && <BottomNav view={view} setView={setView} tabs={TABS} />}
