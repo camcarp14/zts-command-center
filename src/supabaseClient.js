@@ -35,7 +35,9 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   );
 }
 
+// ZTS tables live in the "zts" schema of the shared clarify-outreach
+// Supabase project (consolidated 2026-07); auth stays on the default schema.
 export const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: "zts" } })
     : null;
