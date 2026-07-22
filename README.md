@@ -6,7 +6,7 @@ Zero To Secure's operations tool — three pillars, one app:
 |---|---|
 | **Mission** | Today's picture: creator pipeline, Studio status, AI spend, agent roster |
 | **Creators** | YouTube-creator collab pipeline, auto-scored by niche fit — with AI collab-pitch drafting |
-| **Studio** | Shorts ideation (Claude drafts the full asset package) + the Factory production rail |
+| **Studio** | Shorts ideation (Claude drafts the full asset package) + the Factory production rail + Voicebox cloned-voice voiceovers |
 | **SEO** | Article pipeline with an approval gate; publishes to the Shopify blog |
 | **DNA** | The living mind: a weighted node graph that compiles into the worker's prompt |
 | **Agents** | The heuristic agent engine — free heartbeat, gated synthesis |
@@ -37,6 +37,44 @@ run the CLI, and the project appears in the rail. With the bridge offline
 (including on the deployed site), the same handoff copies a complete brief to
 the clipboard instead. The bridge binds 127.0.0.1 only, is read-only apart from
 draft approval and brief drop-off, and never runs renders or spends API money.
+
+## Voicebox — the voice half of the Studio
+
+[Voicebox](https://github.com/jamiepine/voicebox) (MIT, local-first) is a
+desktop voice studio: clone a voice from a minute of reference audio, then
+generate speech on your own hardware — no cloud, no per-character bill. The
+Command Center treats it exactly like the Factory bridge: a local companion
+that lights up when it's running and costs nothing when it isn't.
+
+With the Voicebox app open (`127.0.0.1:17493`):
+
+- Every scripted Short grows a **Voiceover** asset in its detail panel — pick
+  a cloned voice, hit generate, watch live progress, play the take in-app, and
+  download the audio file for the edit. Regeneration and take-removal live in
+  the same block, and Ops logs each generation at $0.00.
+- The Studio's **Voicebox — voice lab** rail shows the app's status, your
+  voice profiles (engine, language, take counts), and voiceover coverage
+  across scripted Shorts.
+- Editing a script after recording flags the take as **stale** (script-hash
+  mismatch) on both the asset block and the kanban card's 🎙 marker, and the
+  Production Watcher mentions voiceover gaps — but only on machines where
+  Voicebox has actually been seen running.
+- **⇢ Factory** briefs note an existing voiceover (voice, engine, duration) so
+  the production side knows the VO is already recorded.
+
+With Voicebox closed or never installed, all of this degrades to quiet
+explainers — nothing errors, nothing nags.
+
+Two practical notes:
+
+- **Local dev works with zero config**: Voicebox's CORS allowlist already
+  includes Vite's `http://localhost:5173`. For the **deployed** site to reach
+  a local Voicebox, launch Voicebox with
+  `VOICEBOX_CORS_ORIGINS=https://your-site.netlify.app` set.
+- Voiceover metadata lives in `localStorage` (`zts_vo_*`), **not** Supabase —
+  the audio itself only exists in Voicebox's database on the machine that
+  generated it, so syncing pointers elsewhere would only create dead
+  references. Same philosophy as `factory/projects/` staying gitignored.
 
 ## ZTS DNA
 
@@ -87,6 +125,8 @@ canvas), so it looks and feels native next to every other tab.
   local fallback so the app still functions without configuration
 - Netlify Functions: `claude` (Anthropic proxy), `shopify-publish` (blog posts)
 - shorts-factory: Python 3.10+ / ffmpeg / faster-whisper, `factory/`
+- Voicebox (optional): local desktop app at `127.0.0.1:17493` for cloned-voice
+  voiceovers, `src/voicebox.jsx`
 
 ## Environment
 

@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import DOMPurify from "dompurify";
 import { AnimatedNumber, EmptyState, SkeletonLine, SkeletonRows, SkeletonBoard, CommandPalette, useToast, M } from "./ui.jsx";
 import { FactoryPanel, sendBriefToFactory } from "./factory.jsx";
+import { VoiceboxPanel, VoiceoverBlock, voStore, voiceboxEverSeen, hashScript } from "./voicebox.jsx";
 import { DnaView } from "./dna/DnaView.jsx";
 import { DnaWorker } from "./dna/dnaWorker.js";
 
@@ -471,6 +472,15 @@ const HEURISTIC_AGENTS = {
     if (stuck.length >= 3 && !kb.seenToday("production", "wip_pileup")) out.push({ agent: "production", type: "observation", signal: "info", dedupKey: "wip_pileup", text: `${stuck.length} Shorts are mid-production (script/assets). Batching the finish step keeps your posting cadence alive.` });
     const ready = ctx.shorts.filter(s => s.stage === "ready").length;
     if (ready >= 2 && !kb.seenToday("production", "ready_queue")) out.push({ agent: "production", type: "observation", signal: "warning", dedupKey: "ready_queue", text: `${ready} Shorts are READY to post but not scheduled. Get them on the calendar — published beats perfect.` });
+    // Voiceover coverage — mentioned only on machines where Voicebox has
+    // actually been seen running, so nobody gets nagged about a tool they
+    // don't use. Free local generation means a gap here is pure friction.
+    if (voiceboxEverSeen()) {
+      const unvoiced = ctx.shorts.filter(s => s.script && s.stage !== "posted" && voStore.get(s.id)?.status !== "completed");
+      if (unvoiced.length >= 2 && !kb.seenToday("production", "vo_gap")) out.push({ agent: "production", type: "observation", signal: "info", dedupKey: "vo_gap", text: `${unvoiced.length} scripted Shorts have no voiceover yet. Voicebox is on this machine — a cloned-voice VO is one click in each Short's asset panel, and it costs nothing.` });
+      const stale = ctx.shorts.filter(s => { const vo = voStore.get(s.id); return s.script && vo?.status === "completed" && vo.script_hash !== hashScript(s.script); });
+      if (stale.length > 0 && !kb.seenToday("production", "vo_stale")) out.push({ agent: "production", type: "observation", signal: "warning", dedupKey: "vo_stale", text: `${stale.length} Short${stale.length !== 1 ? "s have" : " has a"} voiceover${stale.length !== 1 ? "s" : ""} recorded from an older script. Regenerate in the asset panel so the audio matches what ships.` });
+    }
     return out;
   }},
   cadence: { name: "Cadence Monitor", scan: (ctx) => {
@@ -522,7 +532,7 @@ const HEURISTIC_AGENTS = {
 
 const AGENT_META = [
   { key: "creatorScout", name: "Creator Scout", role: "Outreach prioritization", watches: "Prime-fit creators (high subs × niche relevance × engagement) sitting un-contacted. Surfaces the highest-value collab targets for ZTS first.", cost: "Free heuristic" },
-  { key: "production", name: "Production Watcher", role: "Studio throughput", watches: "Shorts stuck mid-production and finished Shorts not yet scheduled. Keeps the content pipeline flowing so you actually ship.", cost: "Free heuristic" },
+  { key: "production", name: "Production Watcher", role: "Studio throughput", watches: "Shorts stuck mid-production, finished Shorts not yet scheduled, and — when Voicebox runs on this machine — scripted Shorts missing a voiceover or carrying one from an older script.", cost: "Free heuristic" },
   { key: "cadence", name: "Cadence Monitor", role: "Posting consistency", watches: "Days since your last Short went live. Flags posting gaps because the algorithm rewards consistency.", cost: "Free heuristic" },
   { key: "reply", name: "Reply Sentinel", role: "Collab triage", watches: "Creator replies waiting on you. Raises a critical flag so warm collab interest never goes cold.", cost: "Free heuristic" },
   { key: "pattern", name: "Pattern Learner", role: "Content learning", watches: "Which Short types you produce most, building toward which ones actually drive ZTS conversions.", cost: "Free heuristic" },
@@ -576,6 +586,7 @@ function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSi
   const delShort = async (id) => {
     setShorts(prev => prev.filter(s => s.id !== id)); // optimistic
     setOpenShort(null);
+    voStore.del(id); // machine-local voiceover metadata goes with the Short
     if (!supabase) return;
     const { error: err } = await supabase.from("shorts").delete().eq("id", id);
     if (err) { console.warn("[StudioView] delete failed:", err.message); toast.push("Delete didn't stick — " + err.message, { tone: "error" }); }
@@ -614,10 +625,21 @@ function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSi
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {items.map((s, idx) => {
                     const t = SHORT_TYPES[s.type] || SHORT_TYPES.angle;
+                    // Machine-local voiceover marker — re-read on render; the
+                    // Studio re-renders when the detail modal closes, which is
+                    // exactly when a fresh take could have landed.
+                    const vo = s.script ? voStore.get(s.id) : null;
+                    const voStale = vo?.status === "completed" && vo.script_hash !== hashScript(s.script);
                     return (
                       <div key={s.id} style={{ animation: `cardIn 0.3s ${M.easeOut} both`, animationDelay: `${Math.min(idx, 8) * 30}ms` }}>
                       <Card hover onClick={() => setOpenShort(s)} style={{ padding: "12px 13px", borderLeft: `3px solid ${stage.color}` }}>
-                        <div style={{ display: "inline-block", fontSize: "8px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{t.label}</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", marginBottom: "6px" }}>
+                          <span style={{ fontSize: "8px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 6px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne }}>{t.label}</span>
+                          {vo?.status === "completed" && (
+                            <span title={voStale ? "Voiceover recorded from an older script — regenerate" : `Voiceover recorded — ${vo.profile_name}`}
+                              style={{ fontSize: "10px", lineHeight: 1, flexShrink: 0, filter: voStale ? "grayscale(1)" : "none", opacity: voStale ? 0.55 : 1 }}>🎙</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: "12px", fontWeight: 600, color: T.ink, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.title || s.topic || "Untitled"}</div>
                         {s.hook && <div style={{ fontSize: "10px", color: T.faint, marginTop: "4px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.hook}</div>}
                         <StageStepper stages={SHORT_STAGES} current={stage.key}
@@ -638,6 +660,11 @@ function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSi
           in this repo) turns filmed footage into the finished 9:16 Short; this
           rail shows its live project state whenever the local bridge is up. */}
       <FactoryPanel isMobile={isMobile} />
+
+      {/* Voicebox — the voice half of the Studio. The local Voicebox app turns
+          any scripted Short into a cloned-voice voiceover; this rail shows its
+          voices and coverage whenever the app is running. */}
+      <VoiceboxPanel shorts={shorts} isMobile={isMobile} />
 
       {composing && <ComposeModal isMobile={isMobile} onClose={() => setComposing(false)} onCreate={addShort} />}
       {openShort && <ShortDetail short={openShort} isMobile={isMobile} onClose={() => setOpenShort(null)} onUpdate={updateShort} onDelete={delShort} />}
@@ -764,6 +791,10 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
                 <>
                   <AssetBlock title="Hook (first 3 seconds)" asset="hook"><div style={box}>{short.hook || "—"}</div></AssetBlock>
                   <AssetBlock title="Script"><div style={box}>{short.script || "—"}</div></AssetBlock>
+                  {/* Voiceover — the script read aloud by a cloned voice via the
+                      local Voicebox app. Self-contained: probes Voicebox itself
+                      and degrades to a one-line explainer when it's offline. */}
+                  {short.script && <AssetBlock title="Voiceover (Voicebox)"><VoiceoverBlock short={short} onLog={(e) => obs.log(e)} /></AssetBlock>}
                   <AssetBlock title="Thumbnail concepts" asset="thumbnail_concepts">
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {(short.thumbnail_concepts || []).map((tc, i) => (
@@ -1579,7 +1610,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
               {recent.map((l, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: l.ok === false ? T.red : T.green, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: "11px", color: T.ink, fontWeight: 600 }}>{({ generate_short: "Generated a Short", regen_asset: "Regenerated asset", agent_synthesis: "Engine synthesis" })[l.fn] || l.fn}</div></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: "11px", color: T.ink, fontWeight: 600 }}>{({ generate_short: "Generated a Short", regen_asset: "Regenerated asset", agent_synthesis: "Engine synthesis", voiceover: "Generated voiceover" })[l.fn] || l.fn}</div></div>
                   <span style={{ fontSize: "10px", color: T.faint, fontFamily: mono }}>${(l.costEstimate||0).toFixed(4)}</span>
                 </div>
               ))}
@@ -1624,13 +1655,13 @@ function OpsView({ isMobile }) {
                   <span style={{ fontSize: "12px", color: T.ink, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.fn}</span>
                   <span style={{ fontSize: "11px", color: T.ink, fontFamily: mono, flexShrink: 0 }}>${(l.costEstimate||0).toFixed(4)}</span>
                 </div>
-                <div style={{ fontSize: "10px", color: T.faint, fontFamily: mono, marginTop: "3px", paddingLeft: "15px" }}>{l.model?.includes("sonnet") ? "Sonnet" : "Haiku"} · {l.latencyMs}ms</div>
+                <div style={{ fontSize: "10px", color: T.faint, fontFamily: mono, marginTop: "3px", paddingLeft: "15px" }}>{l.model?.includes("sonnet") ? "Sonnet" : l.model?.startsWith("voicebox") ? "Voicebox" : "Haiku"} · {l.latencyMs}ms</div>
               </div>
             ) : (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "9px 4px", borderBottom: i < 29 ? `1px solid ${T.line}` : "none" }}>
                 <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: l.ok === false ? T.red : T.green, flexShrink: 0 }} />
                 <span style={{ fontSize: "12px", color: T.ink, fontWeight: 600, flex: 1 }}>{l.fn}</span>
-                <span style={{ fontSize: "10px", color: T.faint, fontFamily: mono }}>{l.model?.includes("sonnet") ? "Sonnet" : "Haiku"}</span>
+                <span style={{ fontSize: "10px", color: T.faint, fontFamily: mono }}>{l.model?.includes("sonnet") ? "Sonnet" : l.model?.startsWith("voicebox") ? "Voicebox" : "Haiku"}</span>
                 <span style={{ fontSize: "11px", color: T.sub, fontFamily: mono }}>{l.latencyMs}ms</span>
                 <span style={{ fontSize: "11px", color: T.ink, fontFamily: mono, minWidth: "60px", textAlign: "right" }}>${(l.costEstimate||0).toFixed(4)}</span>
               </div>

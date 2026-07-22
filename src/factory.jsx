@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import { EmptyState, M, useToast } from "./ui.jsx";
+import { engineLabel, voStore } from "./voicebox.jsx";
 
 const BRIDGE = "http://127.0.0.1:8765";
 
@@ -68,6 +69,9 @@ export function useFactory(active) {
 // Bridge online → POST the brief (lands in factory/briefs/ as md+json).
 // Bridge offline → the same brief goes to the clipboard, ready to paste.
 export function briefFromShort(short) {
+  // A finished Voicebox take rides along so the edit knows a recorded VO
+  // already exists (exported from the Voiceover asset, not re-recorded).
+  const vo = voStore.get(short.id);
   return {
     source: "zts-command-center",
     short_id: short.id,
@@ -79,6 +83,15 @@ export function briefFromShort(short) {
     description: short.description || "",
     tags: short.tags || [],
     pinned_comment: short.pinned_comment || "",
+    ...(vo?.status === "completed" ? {
+      voiceover: {
+        voice: vo.profile_name || "",
+        engine: vo.engine || "",
+        duration_sec: vo.duration ?? null,
+        generation_id: vo.generation_id,
+        note: "Generated in Voicebox on this machine — download it from the Short's Voiceover asset in Studio.",
+      },
+    } : {}),
   };
 }
 
@@ -92,6 +105,10 @@ export function briefAsText(brief) {
     `SCRIPT:`,
     brief.script,
     ``,
+    ...(brief.voiceover ? [
+      `VOICEOVER: already recorded — "${brief.voiceover.voice}" via Voicebox (${engineLabel(brief.voiceover.engine)}${brief.voiceover.duration_sec ? `, ${Math.round(brief.voiceover.duration_sec)}s` : ""}). Download from the Short's Voiceover asset in Studio.`,
+      ``,
+    ] : []),
     `TITLE: ${brief.title}`,
     `DESCRIPTION: ${brief.description}`,
     `TAGS: ${(brief.tags || []).join(", ")}`,
