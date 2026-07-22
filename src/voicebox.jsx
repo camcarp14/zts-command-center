@@ -84,16 +84,20 @@ export function useVoicebox(active) {
   const [health, setHealth] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const timerRef = useRef(null);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
     try {
       const h = await vbFetch("/health");
       const list = await vbFetch("/profiles");
+      if (!mountedRef.current) return;
       setHealth(h || null);
       setProfiles(Array.isArray(list) ? list : []);
       setStatus("online");
       markVoiceboxSeen();
     } catch {
+      if (!mountedRef.current) return;
       setStatus("offline");
       setHealth(null);
       setProfiles([]);
@@ -113,13 +117,17 @@ export function useVoicebox(active) {
 // ─── Generation lifecycle ────────────────────────────────────────────────────
 // POST /generate queues the work and returns immediately with status
 // "generating"; the audio lands when GET /history/{id} reports "completed".
-async function startGeneration({ profileId, text, language }) {
-  const lang = VB_LANGUAGES.has(language) ? language : "en";
-  // Engine deliberately omitted — Voicebox resolves the profile's own default.
+async function startGeneration({ profile, text }) {
+  const lang = VB_LANGUAGES.has(profile.language) ? profile.language : "en";
+  // Engine resolved client-side, same as Voicebox's own frontend: the API's
+  // engine field defaults to "qwen" when omitted, which would silently ignore
+  // the profile's own default and reject preset voices outright. Explicit
+  // null lets the server walk its default_engine → preset_engine → qwen chain.
+  const engine = profile.default_engine || profile.preset_engine || null;
   return vbFetch("/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ profile_id: profileId, text, language: lang }),
+    body: JSON.stringify({ profile_id: profile.id, text, language: lang, engine }),
   }, 15000);
 }
 
@@ -136,24 +144,33 @@ export function VoiceoverBlock({ short, onLog }) {
   const [vo, setVo] = useState(() => voStore.get(short.id));
   const [profileId, setProfileId] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [starting, setStarting] = useState(false);
   const toast = useToast();
   const pollRef = useRef(null);
   const startedRef = useRef(null);
+  const startingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const saveVo = useCallback((next) => {
-    setVo(next);
+    // The store write always lands (the generation is real regardless of this
+    // component's fate); state only updates while mounted.
     if (next) voStore.set(short.id, next); else voStore.del(short.id);
+    if (mountedRef.current) setVo(next);
   }, [short.id]);
 
   // Poll a generating take until it settles. Also the resume path: a modal
-  // reopened mid-generation picks the loop back up from the stored record.
+  // reopened mid-generation picks the loop back up from the stored record —
+  // elapsed time counted from the take's real start, not from the reopen.
   useEffect(() => {
     if (vo?.status !== "generating" || status !== "online") return;
-    if (!startedRef.current) startedRef.current = Date.now();
+    if (!startedRef.current) startedRef.current = (vo.created_at && Date.parse(vo.created_at)) || Date.now();
     let cancelled = false;
+    const showElapsed = () => setElapsed(Math.max(0, Math.round((Date.now() - startedRef.current) / 1000)));
+    showElapsed();
+    const secTimer = setInterval(showElapsed, 1000);
     const tick = async () => {
       if (cancelled) return;
-      setElapsed(Math.round((Date.now() - startedRef.current) / 1000));
       try {
         const gen = await pollGeneration(vo.generation_id);
         if (cancelled) return;
@@ -181,17 +198,23 @@ export function VoiceoverBlock({ short, onLog }) {
       pollRef.current = setTimeout(tick, 2000);
     };
     tick();
-    return () => { cancelled = true; clearTimeout(pollRef.current); };
+    return () => { cancelled = true; clearTimeout(pollRef.current); clearInterval(secTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vo?.status, vo?.generation_id, status]);
 
   const generate = async (pid) => {
+    if (startingRef.current || !short.script) return; // one POST per click-burst
     const profile = profiles.find(p => p.id === pid);
-    if (!profile || !short.script) return;
+    if (!profile) {
+      toast.push("That voice isn't in Voicebox anymore — remove this take or pick another voice.", { tone: "warning" });
+      return;
+    }
+    startingRef.current = true;
+    setStarting(true);
     startedRef.current = Date.now();
     setElapsed(0);
     try {
-      const gen = await startGeneration({ profileId: profile.id, text: short.script, language: profile.language });
+      const gen = await startGeneration({ profile, text: short.script });
       saveVo({
         generation_id: gen.id, profile_id: profile.id, profile_name: profile.name,
         engine: gen.engine || profile.default_engine || profile.preset_engine || null,
@@ -201,6 +224,8 @@ export function VoiceoverBlock({ short, onLog }) {
     } catch (e) {
       toast.push(`Couldn't start the voiceover — ${e?.message || "is Voicebox still running?"}`, { tone: "error" });
     }
+    startingRef.current = false;
+    if (mountedRef.current) setStarting(false);
   };
 
   const stale = vo?.status === "completed" && vo.script_hash !== hashScript(short.script);
@@ -234,9 +259,9 @@ export function VoiceoverBlock({ short, onLog }) {
               <option value="">Pick a voice…</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}{p.generation_count ? ` · ${p.generation_count} takes` : ""}</option>)}
             </select>
-            <button onClick={() => profileId && generate(profileId)} disabled={!profileId}
-              style={{ padding: "8px 16px", background: profileId ? V.navyGrad : "rgba(15,23,42,0.06)", border: "none", borderRadius: "8px", color: profileId ? "#FFF" : V.faint, fontSize: "11px", fontWeight: 700, cursor: profileId ? "pointer" : "default", fontFamily: V.syne }}>
-              🎙 Generate voiceover
+            <button onClick={() => profileId && generate(profileId)} disabled={!profileId || starting}
+              style={{ padding: "8px 16px", background: profileId && !starting ? V.navyGrad : "rgba(15,23,42,0.06)", border: "none", borderRadius: "8px", color: profileId && !starting ? "#FFF" : V.faint, fontSize: "11px", fontWeight: 700, cursor: profileId && !starting ? "pointer" : "default", fontFamily: V.syne }}>
+              {starting ? "Starting…" : "🎙 Generate voiceover"}
             </button>
           </div>
         )}
@@ -269,7 +294,7 @@ export function VoiceoverBlock({ short, onLog }) {
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           {chip(V.red, "failed")}
           <span style={{ fontSize: "11.5px", color: V.sub, flex: 1, minWidth: "160px" }}>{vo.error || "Generation failed in Voicebox."}</span>
-          {status === "online" && profiles.length > 0 && smallBtn(() => generate(vo.profile_id || profiles[0].id), "↻ retry")}
+          {status === "online" && profiles.length > 0 && smallBtn(() => generate(vo.profile_id || profiles[0].id), starting ? "starting…" : "↻ retry")}
           {smallBtn(() => saveVo(null), "✕ clear", V.faint)}
         </div>
       </div>
@@ -287,7 +312,7 @@ export function VoiceoverBlock({ short, onLog }) {
           {vo.engine ? ` · ${engineLabel(vo.engine)}` : ""}{vo.duration ? ` · ${fmtDur(vo.duration)}` : ""}
         </span>
         <span style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
-          {status === "online" && smallBtn(() => generate(vo.profile_id), "↻ regenerate")}
+          {status === "online" && smallBtn(() => generate(vo.profile_id), starting ? "starting…" : "↻ regenerate")}
           {smallBtn(() => saveVo(null), "✕ remove", V.faint)}
         </span>
       </div>

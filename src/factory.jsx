@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import { EmptyState, M, useToast } from "./ui.jsx";
-import { engineLabel, voStore } from "./voicebox.jsx";
+import { engineLabel, hashScript, voStore } from "./voicebox.jsx";
 
 const BRIDGE = "http://127.0.0.1:8765";
 
@@ -89,7 +89,10 @@ export function briefFromShort(short) {
         engine: vo.engine || "",
         duration_sec: vo.duration ?? null,
         generation_id: vo.generation_id,
-        note: "Generated in Voicebox on this machine — download it from the Short's Voiceover asset in Studio.",
+        stale: vo.script_hash !== hashScript(short.script || ""),
+        note: vo.script_hash !== hashScript(short.script || "")
+          ? "Recorded from an OLDER version of this script — regenerate in Studio before the edit."
+          : "Generated in Voicebox on this machine — download it from the Short's Voiceover asset in Studio.",
       },
     } : {}),
   };
@@ -106,7 +109,11 @@ export function briefAsText(brief) {
     brief.script,
     ``,
     ...(brief.voiceover ? [
-      `VOICEOVER: already recorded — "${brief.voiceover.voice}" via Voicebox (${engineLabel(brief.voiceover.engine)}${brief.voiceover.duration_sec ? `, ${Math.round(brief.voiceover.duration_sec)}s` : ""}). Download from the Short's Voiceover asset in Studio.`,
+      (() => {
+        const bits = [brief.voiceover.engine && engineLabel(brief.voiceover.engine), brief.voiceover.duration_sec && `${Math.round(brief.voiceover.duration_sec)}s`].filter(Boolean).join(", ");
+        const state = brief.voiceover.stale ? "recorded from an OLDER script — regenerate in Studio before the edit" : "already recorded";
+        return `VOICEOVER: ${state} — "${brief.voiceover.voice}" via Voicebox${bits ? ` (${bits})` : ""}. Download from the Short's Voiceover asset in Studio.`;
+      })(),
       ``,
     ] : []),
     `TITLE: ${brief.title}`,

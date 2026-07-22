@@ -793,8 +793,17 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
                   <AssetBlock title="Script"><div style={box}>{short.script || "—"}</div></AssetBlock>
                   {/* Voiceover — the script read aloud by a cloned voice via the
                       local Voicebox app. Self-contained: probes Voicebox itself
-                      and degrades to a one-line explainer when it's offline. */}
-                  {short.script && <AssetBlock title="Voiceover (Voicebox)"><VoiceoverBlock short={short} onLog={(e) => obs.log(e)} /></AssetBlock>}
+                      and degrades to a one-line explainer when it's offline.
+                      Deliberately NOT inside AssetBlock: that helper is re-
+                      created every render, which would unmount this stateful
+                      block (killing playback and progress) on any edit. The
+                      key remounts it only when the modal switches Shorts. */}
+                  {short.script && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ marginBottom: "7px" }}><Label>Voiceover (Voicebox)</Label></div>
+                      <VoiceoverBlock key={short.id} short={short} onLog={(e) => obs.log(e)} />
+                    </div>
+                  )}
                   <AssetBlock title="Thumbnail concepts" asset="thumbnail_concepts">
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {(short.thumbnail_concepts || []).map((tc, i) => (
