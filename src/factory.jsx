@@ -134,7 +134,8 @@ function mdToHtml(md) {
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const lines = esc(md).split("\n");
   const out = [];
-  let inList = false;
+  let listTag = null; // "ul" | "ol" | null — numbered lists keep their numbering
+  const closeList = () => { if (listTag) { out.push(`</${listTag}>`); listTag = null; } };
   for (const line of lines) {
     const inline = (s) => s
       .replace(/`([^`]+)`/g, "<code>$1</code>")
@@ -143,17 +144,18 @@ function mdToHtml(md) {
     const li = line.match(/^\s*[-*]\s+(.*)/);
     const num = line.match(/^\s*\d+\.\s+(.*)/);
     if (li || num) {
-      if (!inList) { out.push("<ul>"); inList = true; }
+      const tag = li ? "ul" : "ol";
+      if (listTag !== tag) { closeList(); out.push(`<${tag}>`); listTag = tag; }
       out.push(`<li>${inline((li || num)[1])}</li>`);
       continue;
     }
-    if (inList) { out.push("</ul>"); inList = false; }
+    closeList();
     const h = line.match(/^(#{1,4})\s+(.*)/);
     if (h) { const n = h[1].length + 1; out.push(`<h${n}>${inline(h[2])}</h${n}>`); continue; }
     if (line.trim() === "") { out.push(""); continue; }
     out.push(`<p>${inline(line)}</p>`);
   }
-  if (inList) out.push("</ul>");
+  closeList();
   return out.join("\n");
 }
 
@@ -284,7 +286,7 @@ export function FactoryPanel({ isMobile }) {
       )}
 
       {review && <ReviewModal project={review.project} markdown={review.markdown} onClose={() => setReview(null)} onApprove={approve} approving={approving} />}
-      <style>{`.factory-md h2, .factory-md h3, .factory-md h4, .factory-md h5 { font-family: 'Syne', system-ui; margin: 16px 0 6px; } .factory-md code { font-family: 'DM Mono', monospace; background: #F1F4FA; padding: 1px 5px; border-radius: 4px; font-size: 12px; } .factory-md ul { margin: 4px 0 10px; padding-left: 20px; } .factory-md p { margin: 4px 0; }`}</style>
+      <style>{`.factory-md h2, .factory-md h3, .factory-md h4, .factory-md h5 { font-family: 'Syne', system-ui; margin: 16px 0 6px; } .factory-md code { font-family: 'DM Mono', monospace; background: #F1F4FA; padding: 1px 5px; border-radius: 4px; font-size: 12px; } .factory-md ul, .factory-md ol { margin: 4px 0 10px; padding-left: 20px; } .factory-md p { margin: 4px 0; }`}</style>
     </div>
   );
 }

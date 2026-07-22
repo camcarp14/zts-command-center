@@ -48,18 +48,34 @@ const obs = {
 };
 
 // ─── Claude call (shared) ────────────────────────────────────────────────────
+// Local dev covers every loopback host Vite serves on, not just "localhost" —
+// on 127.0.0.1 the old check routed to a Netlify function that doesn't exist
+// under `vite dev` and every AI feature silently failed.
+const isLocalDev = () => ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 async function callClaude({ system, messages, model = "claude-haiku-4-5-20251001", maxTokens = 1024, fn = "generate" }) {
   const t0 = Date.now();
   try {
-    const isDeployed = window.location.hostname !== "localhost";
+    const isDeployed = !isLocalDev();
     const url = isDeployed ? "/.netlify/functions/claude" : "https://api.anthropic.com/v1/messages";
     const headers = isDeployed
       ? { "Content-Type": "application/json" }
       : { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
+    if (isDeployed && supabase) {
+      // The deployed function requires a signed-in session (see netlify/functions/_shared/auth.js).
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
     const body = { model, max_tokens: maxTokens, messages };
     if (system) body.system = system;
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     const data = await res.json();
+    if (!res.ok) {
+      // A failed call cost nothing — logging an estimated cost here inflated
+      // the AI Spend stat with phantom dollars.
+      obs.log({ fn, model, ok: false, error: data?.error?.message || data?.error || `HTTP ${res.status}`, latencyMs: Date.now() - t0 });
+      return null;
+    }
     const text = data.content?.map(b => b.type === "text" ? b.text : "").join("") || "";
     const inTok = data.usage?.input_tokens || Math.round(JSON.stringify(messages).length / 4);
     const outTok = data.usage?.output_tokens || Math.round(text.length / 4);
@@ -390,7 +406,7 @@ const SEO_TOPIC_CLUSTERS = [
   "not your keys not your coins explained",
 ];
 
-async function generateArticle({ keyword, notes, model = "claude-haiku-4-5-20251001" }) {
+async function generateArticle({ keyword, notes, model = "claude-haiku-4-5-20251001", fn = "generate_article" }) {
   const system = `You are the SEO content lead for Zero To Secure. ${ZTS_BRAND}
 
 Write a search-optimized blog article. Rules: genuinely useful first, optimized second — no keyword stuffing. Write for a smart beginner-to-intermediate Bitcoin holder. Use the target keyword naturally in the title, first paragraph, and 1-2 H2s. Weave in ZTS product relevance without being an ad. Suggest internal links to: /products (the ZTS kit), /pages/breach-index (exchange hack history), /pages/academy (self-custody lessons).
@@ -410,7 +426,7 @@ Respond ONLY with valid JSON, no preamble or markdown fences:
   const userMsg = keyword
     ? `Target keyword: ${keyword}${notes ? `\nNotes/angle: ${notes}` : ""}`
     : `No keyword supplied — pick the strongest un-covered topic from ZTS's clusters: ${SEO_TOPIC_CLUSTERS.join("; ")}`;
-  const raw = await callClaude({ system, messages: [{ role: "user", content: userMsg }], model, maxTokens: 4000, fn: "generate_article" });
+  const raw = await callClaude({ system, messages: [{ role: "user", content: userMsg }], model, maxTokens: 4000, fn });
   if (!raw) return null;
   try { return JSON.parse(raw.replace(/```json|```/g, "").trim()); } catch { return null; }
 }
@@ -419,12 +435,20 @@ Respond ONLY with valid JSON, no preamble or markdown fences:
 // local → copies the HTML so you can paste into Shopify admin manually. Mirrors
 // the sendEmail/createMeeting graceful-degradation pattern.
 async function publishToShopify(article) {
-  const isDeployed = window.location.hostname !== "localhost";
+  const isDeployed = !isLocalDev();
   if (isDeployed) {
+    const headers = { "Content-Type": "application/json" };
+    if (supabase) {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
     const res = await fetch("/.netlify/functions/shopify-publish", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: article.title_tag, body_html: article.article_html, summary: article.meta_description, tags: article.target_keyword, handle: article.slug }),
+      headers,
+      // Sanitize before it ships — the article HTML is model output, and the
+      // blog is the one place it renders outside DOMPurify's reach.
+      body: JSON.stringify({ title: article.title_tag, body_html: DOMPurify.sanitize(article.article_html || ""), summary: article.meta_description, tags: article.target_keyword, handle: article.slug }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || "Shopify publish failed");
@@ -531,7 +555,11 @@ const AGENT_META = [
   { key: "synthesizer", name: "Synthesizer", role: "Insight distillation", watches: "Accumulated observations from every agent. Occasionally distills them into one highest-leverage move across creators + studio. The only agent that spends tokens.", cost: "Haiku · gated" },
 ];
 
-function engineSpendThisHour() { const h = Date.now() - 3600000; return obs.getAll().filter(l => l.fn === "agent_synthesis" && new Date(l.ts).getTime() > h).reduce((s,l) => s + (l.costEstimate||0), 0); }
+// The engine's whole hourly bill: synthesis AND its auto-drafted articles.
+// Counting only synthesis (as before) let auto-draft spend sail past the cap
+// the cap check was supposed to enforce.
+const ENGINE_FNS = new Set(["agent_synthesis", "agent_article"]);
+function engineSpendThisHour() { const h = Date.now() - 3600000; return obs.getAll().filter(l => ENGINE_FNS.has(l.fn) && new Date(l.ts).getTime() > h).reduce((s,l) => s + (l.costEstimate||0), 0); }
 function stateHash(creators, shorts) { const sig = [...creators.map(c => `${c.id}:${c.status}`), ...shorts.map(s => `${s.id}:${s.stage}`)].sort().join("|"); let h = 0; for (let i=0;i<sig.length;i++){ h = ((h<<5)-h+sig.charCodeAt(i))|0; } return String(h); }
 
 async function synthesizeInsight(recentObs, allowSonnet) {
@@ -543,7 +571,7 @@ async function synthesizeInsight(recentObs, allowSonnet) {
   return raw;
 }
 // ─── STUDIO VIEW — the Shorts production pillar ──────────────────────────────
-function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSignalConsumed }) {
+function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSignalConsumed, openRecord = null, onRecordConsumed }) {
   const [composing, setComposing] = useState(false);
   const [openShort, setOpenShort] = useState(null);
   const toast = useToast();
@@ -552,6 +580,14 @@ function StudioView({ shorts, setShorts, isMobile, loading, openSignal = 0, onSi
   // was already the active view. Consuming clears the signal in App so a
   // later remount doesn't re-open it.
   useEffect(() => { if (openSignal > 0) { setComposing(true); onSignalConsumed?.(); } }, [openSignal, onSignalConsumed]);
+  // Palette record handoff: picking a Short in ⌘K opens its detail directly.
+  useEffect(() => {
+    if (!openRecord || openRecord.n === 0) return;
+    const s = shorts.find(x => x.id === openRecord.id);
+    if (s) setOpenShort(s);
+    onRecordConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRecord?.n]);
 
   const addShort = async (short) => {
     const fields = { stage: "script", ...short };
@@ -841,7 +877,7 @@ ${creator.description ? `About them: ${creator.description}` : ""}`;
   if (!raw) return null;
   try { return JSON.parse(raw.replace(/```json|```/g, "").trim()); } catch { return null; }
 }
-function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0, onSignalConsumed }) {
+function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0, onSignalConsumed, openRecord = null, onRecordConsumed }) {
   const [adding, setAdding] = useState(false);
   const [openCreator, setOpenCreator] = useState(null);
   const [sortBy, setSortBy] = useState("value");
@@ -850,6 +886,14 @@ function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0
   // Palette handoff: "Add Creator" from ⌘K opens the form, even if Creators
   // was already the active view. Consuming clears the signal in App.
   useEffect(() => { if (openSignal > 0) { setAdding(true); onSignalConsumed?.(); } }, [openSignal, onSignalConsumed]);
+  // Palette record handoff: picking a creator in ⌘K opens their detail directly.
+  useEffect(() => {
+    if (!openRecord || openRecord.n === 0) return;
+    const c = creators.find(x => x.id === openRecord.id);
+    if (c) setOpenCreator(c);
+    onRecordConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRecord?.n]);
 
   const move = async (id, stage) => {
     setCreators(prev => prev.map(c => c.id === id ? { ...c, stage, status: stage } : c)); // optimistic
@@ -1170,19 +1214,25 @@ function AgentEngine({ creators, shorts, articles, onArticleDraft }) {
       if (added > 0) sm.set("engine_obs_since_synth", (sm.get("engine_obs_since_synth") || 0) + added);
       if (forced && added === 0) kb.add([{ agent: "system", type: "system", signal: "info", text: `Manual pass #${sm.get("engine_pass_count")} — scanned ${ctx.creators.length} creators + ${ctx.shorts.length} Shorts, nothing new to flag.` }]);
       // ── SEO auto-draft: agent-initiated, approval-gated. Runs only when the
-      //    toggle is on, the cadence has elapsed, spend is allowed, and we're
-      //    under the cost cap. The draft lands in "In Review" — never published.
-      if (ctrl.seoAutoDraft && !ctrl.observeOnly && engineSpendThisHour() < ctrl.hourlyCostCap) {
+      //    toggle is on, the cadence has elapsed, and we're under the cost cap.
+      //    The draft lands in "In Review" — never published. NOT gated on
+      //    observeOnly: flipping auto-draft on in the SEO tab is its own
+      //    explicit spend opt-in (before, the toggle silently did nothing
+      //    unless you also disabled Observe-only over in Agents).
+      if (ctrl.seoAutoDraft && engineSpendThisHour() < ctrl.hourlyCostCap) {
         const lastDraft = sm.get("seo_last_autodraft") || 0;
         if (now - lastDraft > (ctrl.seoEveryDays || 4) * 86400000) {
           sm.set("seo_last_autodraft", now); // set BEFORE the call so a slow call can't double-fire
           const kws = (sm.get("seo_keywords") || "").split("\n").map(k => k.trim()).filter(Boolean);
           const covered = new Set((aRef.current || []).map(a => (a.target_keyword || a.keyword || "").toLowerCase()));
           const kw = kws.find(k => !covered.has(k.toLowerCase())) || null;
-          const pkg = await generateArticle({ keyword: kw });
+          const pkg = await generateArticle({ keyword: kw, fn: "agent_article" }); // engine-attributed, so the cap sees it
           if (pkg && onArticleDraft) {
             onArticleDraft({ id: `a_${Date.now()}`, created_at: new Date().toISOString(), stage: "review", auto_drafted: true, keyword: kw, ...pkg });
             kb.add([{ agent: "seoCadence", type: "observation", signal: "info", text: `Drafted a new article for review: "${pkg.title_tag}" (${pkg.target_keyword}). Approve or reject it in the SEO tab.` }]);
+          } else if (!pkg) {
+            // Failed generation shouldn't cost a whole cadence period — retry in ~an hour.
+            sm.set("seo_last_autodraft", now - (ctrl.seoEveryDays || 4) * 86400000 + 3600000);
           }
         }
       }
@@ -1220,7 +1270,7 @@ function AgentsView({ isMobile }) {
       <div style={{ width: "38px", height: "22px", borderRadius: "12px", background: on ? T.green : "rgba(15,23,42,0.12)", position: "relative", flexShrink: 0, transition: "background 0.15s" }}><div style={{ position: "absolute", top: "2px", left: on ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#FFF", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} /></div>
     </div>
   );
-  const agentMeta = [["creatorScout","Creator Scout","Prime-fit creators un-contacted"],["production","Production Watcher","Shorts stuck or unscheduled"],["cadence","Cadence Monitor","Posting gaps"],["reply","Reply Sentinel","Creator replies waiting"],["pattern","Pattern Learner","Which Short types you produce"],["cost","Cost Sentinel","AI spend guardrail"]];
+  const agentMeta = [["creatorScout","Creator Scout","Prime-fit creators un-contacted"],["production","Production Watcher","Shorts stuck or unscheduled"],["cadence","Cadence Monitor","Posting gaps"],["reply","Reply Sentinel","Creator replies waiting"],["pattern","Pattern Learner","Which Short types you produce"],["seoCadence","SEO Cadence","Review backlog + publish gaps"],["cost","Cost Sentinel","AI spend guardrail"]];
 
   return (
     <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
@@ -1244,7 +1294,7 @@ function AgentsView({ isMobile }) {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "300px 1fr", gap: "16px", alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <Label style={{ marginBottom: "2px" }}>Token Controls</Label>
-          <Toggle on={ctrl.observeOnly} onClick={() => update({ observeOnly: !ctrl.observeOnly })} label="Observe-only" sub="Heuristics only — never spend tokens" />
+          <Toggle on={ctrl.observeOnly} onClick={() => update({ observeOnly: !ctrl.observeOnly })} label="Observe-only" sub="No synthesis spend (SEO auto-draft has its own switch)" />
           <Toggle on={ctrl.allowSonnet} onClick={() => update({ allowSonnet: !ctrl.allowSonnet })} label="Allow Sonnet" sub="Off = synthesis stays on Haiku" />
           <Toggle on={ctrl.pauseWhenIdle} onClick={() => update({ pauseWhenIdle: !ctrl.pauseWhenIdle })} label="Pause when idle" sub={`Auto-stop after ${ctrl.idleMin}m away`} />
           <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px" }}>
@@ -1274,7 +1324,7 @@ function AgentsView({ isMobile }) {
   );
 }
 // ─── SEO VIEW — article pipeline with approval gate ──────────────────────────
-function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openSignal = 0, onSignalConsumed }) {
+function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openSignal = 0, onSignalConsumed, openRecord = null, onRecordConsumed }) {
   const [composing, setComposing] = useState(false);
   const [openArticle, setOpenArticle] = useState(null);
   const [keywords, setKeywords] = useState(() => sm.get("seo_keywords") || "");
@@ -1285,6 +1335,14 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openS
   // Palette handoff: "New Article" from ⌘K opens the composer, even if SEO
   // was already the active view. Consuming clears the signal in App.
   useEffect(() => { if (openSignal > 0) { setComposing(true); onSignalConsumed?.(); } }, [openSignal, onSignalConsumed]);
+  // Palette record handoff: picking an article in ⌘K opens its detail directly.
+  useEffect(() => {
+    if (!openRecord || openRecord.n === 0) return;
+    const a = articles.find(x => x.id === openRecord.id);
+    if (a) setOpenArticle(a);
+    onRecordConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRecord?.n]);
 
   const update = async (id, patch) => {
     setArticles(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a)); // optimistic
@@ -1317,6 +1375,11 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openS
             </div>
           </div>
           <div style={{ fontSize: "12px", color: T.sub, lineHeight: 1.5, marginBottom: "10px" }}>{autoDraft ? "The engine drafts a new article into In Review" : "Off — articles only generate when you click New Article"}{autoDraft && <> every <strong>{everyDays}</strong> days. It targets your keyword list first, then ZTS topic clusters.</>}</div>
+          {autoDraft && !eng.get().running && (
+            <div style={{ fontSize: "11px", color: T.amberDeep, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: "8px", padding: "7px 10px", marginBottom: "10px" }}>
+              The agent engine is paused — auto-draft only runs while it's playing. Press ▶ in the Agents tab.
+            </div>
+          )}
           {autoDraft && (
             <>
               <input type="range" min="2" max="7" step="1" value={everyDays} onChange={e => { const v = Number(e.target.value); setEveryDays(v); eng.set({ seoEveryDays: v }); }} style={{ width: "100%", accentColor: T.green }} />
@@ -1579,7 +1642,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
               {recent.map((l, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: l.ok === false ? T.red : T.green, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: "11px", color: T.ink, fontWeight: 600 }}>{({ generate_short: "Generated a Short", regen_asset: "Regenerated asset", agent_synthesis: "Engine synthesis" })[l.fn] || l.fn}</div></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: "11px", color: T.ink, fontWeight: 600 }}>{({ generate_short: "Generated a Short", regen_asset: "Regenerated asset", agent_synthesis: "Engine synthesis", generate_article: "Drafted an article", agent_article: "Engine article draft", creator_pitch: "Drafted a pitch" })[l.fn] || l.fn}</div></div>
                   <span style={{ fontSize: "10px", color: T.faint, fontFamily: mono }}>${(l.costEstimate||0).toFixed(4)}</span>
                 </div>
               ))}
@@ -1724,6 +1787,12 @@ export default function App() {
   const [createSignal, setCreateSignal] = useState({ studio: 0, seo: 0, creators: 0 });
   const signalCreate = (key) => setCreateSignal(s => ({ ...s, [key]: s[key] + 1 }));
   const clearSignal = useCallback((key) => setCreateSignal(s => (s[key] === 0 ? s : { ...s, [key]: 0 })), []);
+  // Palette → record handoff: picking a creator/Short/article in ⌘K opens that
+  // record's detail modal, not just its tab. Same counter-consume contract as
+  // createSignal so a remount never re-opens a stale record.
+  const [openRecord, setOpenRecord] = useState({ type: null, id: null, n: 0 });
+  const signalOpen = (type, id) => setOpenRecord(r => ({ type, id, n: r.n + 1 }));
+  const clearOpenRecord = useCallback(() => setOpenRecord(r => (r.n === 0 ? r : { type: null, id: null, n: 0 })), []);
   const toast = useToast();
 
   // Cmd/Ctrl+K opens the command palette from anywhere. Skips while typing in
@@ -1814,9 +1883,9 @@ export default function App() {
     acts.push({ id: "act_article", group: "Create", icon: "✦", label: "New Article", sub: "Draft an SEO article into review", run: () => { signalCreate("seo"); setView("seo"); } });
     acts.push({ id: "act_creator", group: "Create", icon: "+", label: "Add Creator", sub: "Add a YouTube creator to the pipeline", run: () => { signalCreate("creators"); setView("creators"); } });
     acts.push({ id: "act_pass", group: "Action", icon: "⚡", label: "Run engine pass now", run: () => { sm.set("engine_force_pass", true); eng.set({ running: true }); setView("agents"); } });
-    creators.slice(0, 200).forEach(c => c.channel_name && acts.push({ id: `cr_${c.id}`, group: "Creator", icon: "▸", label: c.channel_name, sub: `${fmtSubs(c.subscriber_count)} subs · ${c.stage || "prospected"}`, run: () => setView("creators") }));
-    shorts.slice(0, 200).forEach(s => acts.push({ id: `sh_${s.id}`, group: "Short", icon: "▸", label: s.title || s.topic || "Untitled Short", sub: s.stage, run: () => setView("studio") }));
-    articles.slice(0, 100).forEach(a => acts.push({ id: `ar_${a.id}`, group: "Article", icon: "▸", label: a.title_tag || a.keyword || "Untitled", sub: a.stage, run: () => setView("seo") }));
+    creators.slice(0, 200).forEach(c => c.channel_name && acts.push({ id: `cr_${c.id}`, group: "Creator", icon: "▸", label: c.channel_name, sub: `${fmtSubs(c.subscriber_count)} subs · ${c.stage || "prospected"}`, run: () => { signalOpen("creator", c.id); setView("creators"); } }));
+    shorts.slice(0, 200).forEach(s => acts.push({ id: `sh_${s.id}`, group: "Short", icon: "▸", label: s.title || s.topic || "Untitled Short", sub: s.stage, run: () => { signalOpen("short", s.id); setView("studio"); } }));
+    articles.slice(0, 100).forEach(a => acts.push({ id: `ar_${a.id}`, group: "Article", icon: "▸", label: a.title_tag || a.keyword || "Untitled", sub: a.stage, run: () => { signalOpen("article", a.id); setView("seo"); } }));
     return acts;
   })();
 
@@ -1858,9 +1927,9 @@ export default function App() {
         )}
       </div>
       {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} isMobile={isMobile} loading={dataLoading} />}
-      {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.creators} onSignalConsumed={() => clearSignal("creators")} />}
-      {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} />}
-      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.seo} onSignalConsumed={() => clearSignal("seo")} />}
+      {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.creators} onSignalConsumed={() => clearSignal("creators")} openRecord={openRecord.type === "creator" ? openRecord : null} onRecordConsumed={clearOpenRecord} />}
+      {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} openRecord={openRecord.type === "short" ? openRecord : null} onRecordConsumed={clearOpenRecord} />}
+      {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.seo} onSignalConsumed={() => clearSignal("seo")} openRecord={openRecord.type === "article" ? openRecord : null} onRecordConsumed={clearOpenRecord} />}
       {view === "dna" && <DnaView creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />}
       {view === "agents" && <AgentsView isMobile={isMobile} />}
       {view === "ops" && <OpsView isMobile={isMobile} />}

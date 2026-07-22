@@ -91,11 +91,18 @@ canvas), so it looks and feels native next to every other tab.
 ## Environment
 
 **Netlify (server-side):** `ANTHROPIC_API_KEY`, `SHOPIFY_*` (see
-`netlify/functions/shopify-publish.js`).
+`netlify/functions/shopify-publish.js`; optional `SHOPIFY_PUBLIC_DOMAIN`
+for correct "View live" links).
 
 **Client (safe to expose):** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` —
 RLS protects the data, not key secrecy. Local dev also reads
 `VITE_ANTHROPIC_API_KEY` for direct API calls on localhost only.
+
+**Function auth:** when Supabase is configured, both Netlify functions require
+a signed-in session — the app sends the Supabase access token automatically,
+and anonymous calls to the public function URLs are rejected (no more
+open-to-the-internet Anthropic spend or blog publishing). Unconfigured
+installs skip the check, keeping the zero-config grace.
 
 ## Notes
 

@@ -31,6 +31,10 @@ def select(pdir, force: bool = False):
          "max_window": c["max_seconds"] + 12},
         p, settings)
 
+    if not result.get("candidates"):
+        raise SystemExit("Selector returned no candidates — re-run `select`, or check "
+                         "the LLM response in work/ for what went wrong.")
+
     words = transcript["words"]
     for cand in result["candidates"]:
         cand["start"], cand["end"] = _snap(cand["start"], cand["end"], words)

@@ -2,18 +2,28 @@
 // Proxy for Anthropic API calls — keeps the key server-side.
 // Same pattern as clarify-outreach and board-room's claude.js functions.
 //
-// This function did not exist before — every AI-powered feature in this app
-// (Studio's Short generation, SEO auto-draft, the Agents engine) calls
-// /.netlify/functions/claude via callClaude() in App.jsx, and has been
-// getting a 404 on every deployed request. Local dev worked around this by
-// calling Anthropic directly from the browser with VITE_ANTHROPIC_API_KEY,
-// which is why this gap wasn't obvious — it only breaks once deployed.
+// Guarded three ways, because this endpoint spends real money on a public URL:
+//   1. requireUser — a valid Supabase session token (skipped only when
+//      Supabase isn't configured at all; see _shared/auth.js).
+//   2. Model allowlist — only the models the app actually uses. Add here AND
+//      in the client's MODEL_PRICING when adopting a new one.
+//   3. max_tokens ceiling — a stray or malicious 100k-token request is clamped.
 
 const { json, error, methodGuard } = require("./_shared/response");
+const { requireUser } = require("./_shared/auth");
+
+const ALLOWED_MODELS = new Set([
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-6",
+]);
+const MAX_TOKENS_CEILING = 8192;
 
 exports.handler = async (event) => {
   const guard = methodGuard(event, "POST");
   if (guard) return guard;
+
+  const denied = await requireUser(event);
+  if (denied) return denied;
 
   const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -22,6 +32,14 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || "{}");
+    if (!ALLOWED_MODELS.has(body.model)) {
+      return error(400, `Model not allowed: ${body.model || "(none)"}`);
+    }
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return error(400, "messages must be a non-empty array");
+    }
+    body.max_tokens = Math.min(Number(body.max_tokens) || 1024, MAX_TOKENS_CEILING);
+
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {

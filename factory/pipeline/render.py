@@ -25,7 +25,8 @@ def render(pdir, final: bool = False, version: int | None = None) -> str:
     inputs = ["-i", "work/roughcut.mp4"]
     steps = []
     fonts_rel = util.rel_from(pdir, util.ROOT / settings["paths"]["fonts_dir"])
-    if ":" in fonts_rel or ":" in "work/captions.ass":
+    captions_rel = util.rel_from(pdir, p["work"] / "captions.ass")
+    if ":" in fonts_rel or ":" in captions_rel:
         print("WARNING: path contains ':' which breaks ffmpeg filtergraphs -- "
               "keep the repo and projects on the same drive / use WSL.")
     steps.append(f"[0:v]ass=work/captions.ass:fontsdir={fonts_rel}[v0]")

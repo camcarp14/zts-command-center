@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { compileGenome, dnaBus, loadGenome, propagate, seedsForTask } from "./dna.js";
+import { supabase } from "../supabaseClient.js";
 
 // ════════════════════════════════════════════════════════════════════════════
 // ZTS DNA WORKER — the hands of the mind. It reads the compiled genome, proposes
@@ -8,9 +9,11 @@ import { compileGenome, dnaBus, loadGenome, propagate, seedsForTask } from "./dn
 // grow the mind), and executes ONE per pass. Every result lands where a human
 // review click would have put it.
 //
-// THE WORKER NEVER PUBLISHES. There is no Supabase import here and no code path
-// that sets a Short's stage to "posted", an article's stage to "published", or a
-// creator past "contacted". The ONLY external write is onArticleDraft() into
+// THE WORKER NEVER PUBLISHES. There is no code path that sets a Short's stage
+// to "posted", an article's stage to "published", or advances a creator's
+// pipeline stage. (The supabaseClient import below is auth-only — it reads the
+// session token for the Netlify proxy; it never writes.) The ONLY external
+// write is onArticleDraft() into
 // stage "review" — the SEO approval queue. Everything else lands in the worklog,
 // the kb, or the suggestions tray. The genome's LOCKED n_pr_review / n_pr_no_publish
 // nodes say the same thing in prompt form, and ZTS_GOVERNANCE leads every compiled
@@ -34,7 +37,9 @@ import { compileGenome, dnaBus, loadGenome, propagate, seedsForTask } from "./dn
 // engine state with the running app. Re-declared, not imported, because App.jsx
 // exports none of these — dna.js does the identical thing for the genome store.
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+// Optional-chained so the pure helpers in this file stay importable under plain
+// Node (tests) where import.meta.env doesn't exist.
+const ANTHROPIC_API_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY || "";
 
 // Model pricing ($/1M tokens) — needed so the re-declared callClaude can attribute
 // costEstimate to obs exactly as App.jsx does. Sonnet id is the pinned "claude-
@@ -69,18 +74,30 @@ const obs = {
 // or null on a transport error, logs its own obs entry, defaults to Haiku, and
 // NEVER sends temperature or top_p. Deployed → the Netlify proxy that holds the
 // key; localhost → the direct browser-access header.
+const isLocalDev = () => ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 async function callClaude({ system, messages, model = "claude-haiku-4-5-20251001", maxTokens = 1024, fn = "generate" }) {
   const t0 = Date.now();
   try {
-    const isDeployed = window.location.hostname !== "localhost";
+    const isDeployed = !isLocalDev();
     const url = isDeployed ? "/.netlify/functions/claude" : "https://api.anthropic.com/v1/messages";
     const headers = isDeployed
       ? { "Content-Type": "application/json" }
       : { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
+    if (isDeployed && supabase) {
+      // The deployed function requires a signed-in session (netlify/functions/_shared/auth.js).
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
     const body = { model, max_tokens: maxTokens, messages };
     if (system) body.system = system;
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     const data = await res.json();
+    if (!res.ok) {
+      // Failed calls cost nothing — no phantom costEstimate in the spend stats.
+      obs.log({ fn, model, ok: false, error: data?.error?.message || data?.error || `HTTP ${res.status}`, latencyMs: Date.now() - t0 });
+      return null;
+    }
     const text = data.content?.map(b => b.type === "text" ? b.text : "").join("") || "";
     const inTok = data.usage?.input_tokens || Math.round(JSON.stringify(messages).length / 4);
     const outTok = data.usage?.output_tokens || Math.round(text.length / 4);
@@ -378,6 +395,9 @@ function learningLabel(text) {
 // "cite the signal behind every claim" would like a word). Kept cheap for Haiku.
 function buildSnapshot(creators, shorts, articles) {
   const cs = creators || [], sh = shorts || [], ar = articles || [];
+  // The app's real pipeline vocabulary is prospected → drafted → sent → replied
+  // → collab (the Clarify port originally counted a "contacted" status that
+  // doesn't exist here, so the brief always reported 0 mid-pipeline creators).
   const cBy = (s) => cs.filter(c => c.status === s).length;
   const topProspect = cs.filter(c => c.status === "prospected" && c.channel_name)
     .map(c => ({ c, v: creatorValue(c) }))
@@ -388,7 +408,7 @@ function buildSnapshot(creators, shorts, articles) {
   const daysDark = posted ? Math.floor((Date.now() - new Date(posted.posted_at).getTime()) / 86400000) : null;
   const arBy = (st) => ar.filter(a => a.stage === st).length;
   return [
-    `CREATORS: ${cs.length} total — ${cBy("prospected")} prospected, ${cBy("contacted")} contacted, ${cBy("replied")} replied, ${cBy("collab")} collab.${topProspect ? ` Top un-contacted: ${topProspect.c.channel_name} (${fmtSubs(topProspect.c.subscriber_count)} subs, ${topProspect.v.fitLabel}, ${topProspect.v.tier}).` : ""}`,
+    `CREATORS: ${cs.length} total — ${cBy("prospected")} prospected, ${cBy("drafted")} drafted, ${cBy("sent")} sent, ${cBy("replied")} replied, ${cBy("collab")} collab.${topProspect ? ` Top un-contacted: ${topProspect.c.channel_name} (${fmtSubs(topProspect.c.subscriber_count)} subs, ${topProspect.v.fitLabel}, ${topProspect.v.tier}).` : ""}`,
     `SHORTS: ${sh.length} total — ${shBy("idea")} idea, ${shBy("script")} script, ${shBy("assets")} assets, ${shBy("ready")} ready, ${shBy("posted")} posted.${daysDark != null ? ` ${daysDark} day${daysDark !== 1 ? "s" : ""} since last posted.` : " None posted yet."}`,
     `ARTICLES: ${ar.length} total — ${arBy("idea")} idea, ${arBy("review")} in review, ${arBy("approved")} approved, ${arBy("published")} published.`,
   ].join("\n");
@@ -412,8 +432,8 @@ function parseJson(raw) {
 // INVARIANT (re-checked here): every output is a DRAFT. article → onArticleDraft
 // stage "review" (the SEO approval queue); short/pitch → the worklog only; scout
 // → worklog + a kb observation; strategy → worklog + a kb insight; grow →
-// suggestions. NOTHING sets a Short to "posted", an article to "published", or a
-// creator past "contacted", and there is no Supabase seam in this file to do so.
+// suggestions. NOTHING sets a Short to "posted", an article to "published", or
+// advances a creator's stage — there is no Supabase write seam in this file.
 export async function executeTask(task, ctx) {
   const { creators = [], shorts = [], articles = [], genome, onArticleDraft } = ctx || {};
   const t0 = Date.now();
@@ -474,7 +494,7 @@ export async function executeTask(task, ctx) {
 
       case "pitch": {
         // Draft a personal outreach pitch to a specific creator, into the worklog
-        // for review ONLY. The worker never advances a creator past "contacted" —
+        // for review ONLY. The worker never advances a creator's stage —
         // a human reviews and sends. Grounded in real channel facts (cite the signal).
         const creator = creators.find(c => c.id === task.creatorId);
         if (!creator) return finish("skipped", "Creator left the pipeline before the worker reached it");

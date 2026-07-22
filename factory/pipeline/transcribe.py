@@ -45,7 +45,8 @@ def transcribe(pdir, force: bool = False):
     data = {"language": info.language, "segments": segments, "words": words}
     util.write_json(out, data)
     (p["work"] / "transcript.txt").write_text(
-        "\n".join(f"[{util.fmt_ts(s['start'])}] {s['text']}" for s in segments))
+        "\n".join(f"[{util.fmt_ts(s['start'])}] {s['text']}" for s in segments),
+        encoding="utf-8")
     print(f"Transcribed: {len(segments)} segments, {len(words)} words "
           f"-> {out.name}")
     return data

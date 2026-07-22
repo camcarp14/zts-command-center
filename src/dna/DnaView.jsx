@@ -9,6 +9,7 @@ import {
 // The worker is a sibling module (built in parallel, spec §3). We import ONLY the
 // stores + helpers the dock reads; the worker component itself mounts at App root.
 import { wk, worklog, suggestions, inShift, WORKER_DEFAULTS } from "./dnaWorker.js";
+import { supabase } from "../supabaseClient.js";
 import { useToast, M } from "../ui.jsx";
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -34,7 +35,7 @@ import { useToast, M } from "../ui.jsx";
 // would. App.jsx exports nothing, so the call + its obs logging live here against
 // the same `zts_` localStorage the app + Ops tab read. Returns raw text or null,
 // never sends temperature/top_p, defaults to Haiku — the ZTS signature.
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+const ANTHROPIC_API_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY || "";
 const MODEL_PRICING = {
   "claude-haiku-4-5-20251001": { in: 1, out: 5 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
@@ -50,18 +51,30 @@ const sm = {
 const obs = {
   log: (entry) => { const e = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, ts: new Date().toISOString(), ...entry }; sm.set("obs_log", [e, ...(sm.get("obs_log") || [])].slice(0, 500)); },
 };
+const isLocalDev = () => ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 async function callClaude({ system, messages, model = "claude-haiku-4-5-20251001", maxTokens = 1024, fn = "generate" }) {
   const t0 = Date.now();
   try {
-    const isDeployed = window.location.hostname !== "localhost";
+    const isDeployed = !isLocalDev();
     const url = isDeployed ? "/.netlify/functions/claude" : "https://api.anthropic.com/v1/messages";
     const headers = isDeployed
       ? { "Content-Type": "application/json" }
       : { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
+    if (isDeployed && supabase) {
+      // The deployed function requires a signed-in session (netlify/functions/_shared/auth.js).
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
     const body = { model, max_tokens: maxTokens, messages };
     if (system) body.system = system;
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     const data = await res.json();
+    if (!res.ok) {
+      // Failed calls cost nothing — no phantom costEstimate in the spend stats.
+      obs.log({ fn, model, ok: false, error: data?.error?.message || data?.error || `HTTP ${res.status}`, latencyMs: Date.now() - t0 });
+      return null;
+    }
     const text = data.content?.map(b => b.type === "text" ? b.text : "").join("") || "";
     const inTok = data.usage?.input_tokens || Math.round(JSON.stringify(messages).length / 4);
     const outTok = data.usage?.output_tokens || Math.round(text.length / 4);

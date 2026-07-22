@@ -25,8 +25,10 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+// Optional-chained so modules that import this stay loadable under plain Node
+// (the dna test suite) where import.meta.env doesn't exist.
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || "";
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn(

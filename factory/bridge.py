@@ -98,6 +98,14 @@ def latest_review(pdir: Path):
 
 def write_brief(body: dict):
     BRIEFS.mkdir(exist_ok=True)
+    # Coerce field types before use: a client posting {"title": 5} or
+    # {"tags": "ab"} must get a well-formed brief (or a clean 400 upstream),
+    # not an AttributeError-500 from slugify or ', '.join.
+    def s(key):
+        v = body.get(key)
+        return v.strip() if isinstance(v, str) else ""
+    body = {**body, **{k: s(k) for k in
+                       ("title", "topic", "type", "hook", "script", "description", "pinned_comment")}}
     slug = slugify(body.get("title") or body.get("topic"))
     stamp = datetime.date.today().isoformat()
     base = BRIEFS / f"{stamp}_{slug}"
@@ -107,7 +115,8 @@ def write_brief(body: dict):
         n += 1
         path = Path(f"{base}-{n}")
 
-    tags = body.get("tags") or []
+    raw_tags = body.get("tags")
+    tags = [str(t) for t in raw_tags if str(t).strip()] if isinstance(raw_tags, list) else []
     lines = [
         f"# Production brief — {body.get('title') or slug}",
         "",

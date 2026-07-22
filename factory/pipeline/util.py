@@ -74,24 +74,27 @@ def paths(pdir: Path) -> dict:
     return d
 
 
+# All JSON/text IO pins encoding="utf-8": LLM output routinely carries smart
+# quotes, em-dashes, and emoji, and on native Windows write_text defaults to
+# cp1252 — a UnicodeEncodeError mid-pipeline on the first curly quote.
 def load_state(pdir: Path) -> dict:
     f = pdir / "project.json"
-    return json.loads(f.read_text()) if f.exists() else {}
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
 
 
 def save_state(pdir: Path, **updates):
     state = load_state(pdir)
     state.update(updates)
-    (pdir / "project.json").write_text(json.dumps(state, indent=2))
+    (pdir / "project.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
     return state
 
 
 def read_json(p: Path):
-    return json.loads(Path(p).read_text())
+    return json.loads(Path(p).read_text(encoding="utf-8"))
 
 
 def write_json(p: Path, obj):
-    Path(p).write_text(json.dumps(obj, indent=2, ensure_ascii=False))
+    Path(p).write_text(json.dumps(obj, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ---------------------------------------------------------------- ffmpeg
