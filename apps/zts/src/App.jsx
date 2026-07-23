@@ -53,8 +53,10 @@ async function callClaude({ system, messages, model = "claude-haiku-4-5-20251001
   try {
     const isDeployed = window.location.hostname !== "localhost";
     const url = isDeployed ? "/.netlify/functions/claude" : "https://api.anthropic.com/v1/messages";
+    let bearer = null;
+    if (isDeployed) { try { bearer = (await supabase?.auth.getSession())?.data?.session?.access_token || null; } catch {} }
     const headers = isDeployed
-      ? { "Content-Type": "application/json" }
+      ? { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) }
       : { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
     const body = { model, max_tokens: maxTokens, messages };
     if (system) body.system = system;
@@ -1706,7 +1708,7 @@ function LoginScreen() {
   );
 }
 
-export default function App() {
+export default function App({ embedded = false }) {
   useGlobalStyles();
   const isMobile = useIsMobile();
   const [view, setView] = useState("mission");
@@ -1820,25 +1822,29 @@ export default function App() {
     return acts;
   })();
 
-  if (!authChecked) return (
+  if (!embedded && !authChecked) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F5F8" }}>
       <div style={{ width: "32px", height: "32px", border: "2px solid rgba(0,0,0,0.08)", borderTopColor: T.green, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
-  if (!session) return <LoginScreen />;
+  if (!embedded && !session) return <LoginScreen />;
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: isMobile ? "calc(60px + env(safe-area-inset-bottom))" : 0 }}>
       <AgentEngine creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
       <DnaWorker creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />
-      <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
+      {/* each tool owns its own ⌘K palette; the shell does not capture ⌘K */}
+      {!(embedded && isMobile) && (
+      <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: embedded ? "52px" : 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {!embedded && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "18px", height: "18px", borderRadius: "5px", background: "linear-gradient(135deg, #12B886 0%, #0A7A54 100%)", boxShadow: "0 1px 3px rgba(10,122,84,0.4), inset 0 1px 0 rgba(255,255,255,0.25)", display: "inline-block" }} />
             <span style={{ fontSize: "13px", fontWeight: 800, color: "#06281C", letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne }}>Zero To Secure</span>
           </span>
+          )}
           {!isMobile && (
             <div style={{ display: "flex", gap: "2px", background: "rgba(15,23,42,0.04)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid rgba(15,23,42,0.04)`, position: "relative" }}>
               {tabIndicator.ready && (
@@ -1850,13 +1856,14 @@ export default function App() {
             </div>
           )}
         </div>
-        {!isMobile && (
+        {!isMobile && !embedded && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <button onClick={() => setPaletteOpen(true)} title="Command palette (⌘K)" style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 7, color: T.faint, fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: mono }}>⌘K</button>
             <button onClick={() => supabase?.auth.signOut()} style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 7, color: T.sub, fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: syne }}>Sign out</button>
           </div>
         )}
       </div>
+      )}
       {view === "mission" && <MissionView creators={creators} shorts={shorts} onNavigate={setView} isMobile={isMobile} loading={dataLoading} />}
       {view === "creators" && <CreatorsView creators={creators} setCreators={setCreators} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.creators} onSignalConsumed={() => clearSignal("creators")} />}
       {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} />}

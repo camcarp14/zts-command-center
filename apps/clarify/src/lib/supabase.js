@@ -1,0 +1,198 @@
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js";
+
+// The 5 operator-only Netlify functions (send-email, check-replies,
+// read-emails, claude, prospect-proxy) require this — they check it server-
+// side via requireAuth.cjs. Public functions (audit-lead, track-*) don't need
+// it and shouldn't send it.
+export function functionAuthHeaders() {
+  const token = localStorage.getItem("clarify_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+export const sbAuth = {
+  async signIn(email, password) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error_description || data.msg || "Login failed");
+    return data;
+  },
+  async getUser(token) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  },
+  async signOut(token) {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    });
+  },
+  // Silently renew an expired session with the stored refresh token — this is
+  // what keeps the app signed in indefinitely without ever re-showing the
+  // login screen, as long as the refresh token itself hasn't been revoked.
+  async refresh(refreshToken) {
+    if (!refreshToken) return null;
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.access_token ? data : null;
+  },
+};
+
+
+// ─── Supabase ────────────────────────────────────────────────────────────────
+export async function sbFetch(path, options = {}) {
+  // Send the signed-in session token, not the anon key. RLS on the core tables
+  // (prospects/contacts/outreach/tone_memory) requires auth.role()='authenticated';
+  // with the anon key PostgREST doesn't error — it just returns empty sets and
+  // no-ops writes, which is how the deployed board silently broke. Same pattern
+  // deleteInboundLead already uses. Falls back to the anon key pre-login for the
+  // tables that allow it (inbound_leads count).
+  const sessionToken = localStorage.getItem("clarify_token");
+  // Destructure so a caller-supplied `headers` MERGES with the auth headers.
+  // (The old `{ headers: {...}, ...options }` shape let options.headers replace
+  // the whole object — silently dropping apikey/Authorization → gateway 401s.)
+  const { headers: extraHeaders, prefer, ...rest } = options;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    ...rest,
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${sessionToken || SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: prefer || "return=representation",
+      ...extraHeaders,
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+
+export const db = {
+  async getOutreachBoard() {
+    return sbFetch(`/outreach?select=*,prospect:prospects(*),contact:contacts(*)&order=created_at.desc`);
+  },
+  async deleteOutreach(id) {
+    return sbFetch(`/outreach?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+  },
+  async deleteInboundLead(id) {
+    // Uses the signed-in session token, not just the anon key — if inbound_leads'
+    // DELETE policy requires an authenticated role (unlike its SELECT/INSERT/UPDATE
+    // policies, which the public form and status updates rely on via anon), the
+    // anon key alone silently matches zero rows instead of failing outright.
+    const token = localStorage.getItem("clarify_token");
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/inbound_leads?id=eq.${id}`, {
+      method: "DELETE",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const deleted = await res.json().catch(() => []);
+    if (!Array.isArray(deleted) || deleted.length === 0) {
+      // Postgres RLS makes rows invisible rather than raising an error — a DELETE
+      // that matches nothing under the policy still returns 200 OK with an empty
+      // array. Surface that plainly instead of pretending it worked.
+      throw new Error("Nothing was deleted. Supabase's Row Level Security is likely blocking this — check that a DELETE policy exists for authenticated users on the inbound_leads table.");
+    }
+    return deleted;
+  },
+  async markSent(id, gmailMessageId, gmailThreadId, rfcMessageId) {
+    return sbFetch(`/outreach?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        gmail_message_id: gmailMessageId || null,
+        gmail_thread_id: gmailThreadId || null,
+        gmail_rfc_message_id: rfcMessageId || null,
+        next_follow_up_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      }),
+    });
+  },
+  async getToneMemory() {
+    return sbFetch(`/tone_memory?order=created_at.desc&limit=20`);
+  },
+  async updateOutreach(id, updates) {
+    return sbFetch(`/outreach?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(updates) });
+  },
+  async addToneMemory(feedback_text, outreach_id) {
+    return sbFetch(`/tone_memory`, {
+      method: "POST",
+      body: JSON.stringify({ feedback_text, applied_to_outreach_id: outreach_id }),
+    });
+  },
+  async markReplied(id, replyData) {
+    return sbFetch(`/outreach?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "replied",
+        replied_at: new Date().toISOString(),
+        reply_body: replyData.body,
+        reply_from: replyData.from,
+        reply_subject: replyData.subject,
+        reply_gmail_message_id: replyData.messageId,
+      }),
+    });
+  },
+  async saveReplyDraft(id, subject, body) {
+    return sbFetch(`/outreach?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ reply_draft: body, reply_draft_subject: subject }),
+    });
+  },
+  async deleteToneMemory(id) {
+    return sbFetch(`/tone_memory?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+  },
+  async insertProspect(data) {
+    return sbFetch(`/prospects`, { method: "POST", body: JSON.stringify(data) });
+  },
+  async insertContact(data) {
+    return sbFetch(`/contacts`, { method: "POST", body: JSON.stringify(data) });
+  },
+  async insertOutreach(data) {
+    return sbFetch(`/outreach`, { method: "POST", body: JSON.stringify(data) });
+  },
+  async getInboundNewCount() {
+    return sbFetch(`/inbound_leads?status=eq.new&select=id`);
+  },
+};
+
+
+// ─── Lead lifecycle — the glue that makes Inbound, Outreach, and Clients one flow ──
+export const normEmail = (e) => String(e || "").toLowerCase().trim();
+
+
+// ─── Global Agent — portfolio counts fetch ────────────────────────────────────
+export async function fetchPortfolioCounts() {
+  try {
+    const token = localStorage.getItem("clarify_token");
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    const [cr, fr, ar] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/clients?select=id&status=eq.active`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/findings?select=id&status=eq.active&severity=eq.critical`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/action_queue?select=id&status=eq.pending`, { headers }),
+    ]);
+    const c = cr.ok ? await cr.json() : [];
+    const f = fr.ok ? await fr.json() : [];
+    const a = ar.ok ? await ar.json() : [];
+    return { activeClients: c.length || 0, criticalFindings: f.length || 0, pendingActions: a.length || 0 };
+  } catch {
+    return { activeClients: 0, criticalFindings: 0, pendingActions: 0 };
+  }
+}

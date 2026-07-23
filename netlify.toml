@@ -1,8 +1,35 @@
 [build]
   command = "npm install && npm run build"
-  publish = "dist"
+  publish = "apps/shell/dist"
 
-# SPA fallback — all routes serve index.html
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Runway: weekday-morning board scan (12:00 UTC ≈ 7am ET); inert until
+# SUPABASE_SERVICE_ROLE_KEY is set — see netlify/functions/scan-cron.mjs
+[functions."scan-cron"]
+  schedule = "0 12 * * 1-5"
+
+# Specific rewrites must resolve BEFORE the SPA catch-all.
+# Clarify tracked links / open pixel:
+[[redirects]]
+  from = "/r/*"
+  to = "/.netlify/functions/track-click/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/px/*"
+  to = "/.netlify/functions/track-open/:splat"
+  status = 200
+
+# Runway convenience alias:
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback — all remaining routes serve the shell.
 [[redirects]]
   from = "/*"
   to = "/index.html"
