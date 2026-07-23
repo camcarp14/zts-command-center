@@ -2,6 +2,14 @@
   command = "npm install && npm run build"
   publish = "apps/shell/dist"
 
+[build.environment]
+  NODE_VERSION = "20"
+  # The Supabase anon key + URL are public by design (anon tier, RLS-protected)
+  # and Vite legitimately bakes them into the client bundle. Their values also
+  # match the non-VITE SUPABASE_* function env vars, which tripped Netlify's
+  # secrets scanner and failed the build — tell it these keys are not secrets.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
