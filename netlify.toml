@@ -25,6 +25,12 @@
 [functions."scan-cron"]
   schedule = "0 12 * * 1-5"
 
+# Macro (Torque): stop-watch + entry-signal sentinel, every 30 min. Ratchets the
+# persisted stop high-water mark in Blobs; also sends Telegram alerts if the
+# optional TELEGRAM_* vars are set — see netlify/functions/watch-snapshot.mjs
+[functions."watch-snapshot"]
+  schedule = "*/30 * * * *"
+
 # Specific rewrites must resolve BEFORE the SPA catch-all.
 # Clarify tracked links / open pixel:
 [[redirects]]

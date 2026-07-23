@@ -66,6 +66,14 @@ const VIOLET = {
   accentSoft: "rgba(139,124,255,0.14)", accentLine: "rgba(139,124,255,0.32)",
   accentInk: "#120A2E", focusRing: "0 0 0 3px rgba(139,124,255,0.34)",
 };
+// Amber — Macro (the trading cockpit). Distinct from the other three; reads as
+// "markets" and no longer clashes now that Runway moved to violet.
+const AMBER = {
+  accent: "#FFB224", accentHi: "#FFC155", accentDeep: "#E09000",
+  accentGrad: "linear-gradient(135deg, #FFC155 0%, #E09000 100%)",
+  accentSoft: "rgba(255,178,36,0.14)", accentLine: "rgba(255,178,36,0.32)",
+  accentInk: "#1A1204", focusRing: "0 0 0 3px rgba(255,178,36,0.34)",
+};
 
 // Historical alias keys per app, so existing call sites keep resolving after
 // the import swaps to @cc/design. Mapped onto the app's accent ramp.
@@ -94,9 +102,10 @@ const APP_DEF = {
   zts: { base: MIDNIGHT, ramp: EMERALD, label: "ZTS", brand: "Zero To Secure" },
   clarify: { base: MIDNIGHT, ramp: BRASS, label: "Clarify", brand: "Clarify Outreach" },
   runway: { base: MIDNIGHT, ramp: VIOLET, label: "Runway", brand: "Runway" },
+  macro: { base: MIDNIGHT, ramp: AMBER, label: "Macro", brand: "Macro Command Center" },
 };
 
-export const APPS = ["zts", "clarify", "runway"];
+export const APPS = ["zts", "clarify", "runway", "macro"];
 export const appMeta = (app) => {
   const d = APP_DEF[app] || APP_DEF.zts;
   return { app, label: d.label, brand: d.brand, mode: d.base.mode, accent: d.ramp.accent };
