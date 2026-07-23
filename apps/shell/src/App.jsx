@@ -23,6 +23,18 @@ const TOOLS = {
   runway: lazy(() => import("@app/runway")),
 };
 
+// The shell-owned cross-tool management surface (Usage / Minds / Agents).
+const System = lazy(() => import("./System.jsx"));
+
+// Neutral "platform" theme for the top bar while System is open, so the chrome
+// matches System's own dark surface instead of the active tool's accent.
+const PLATFORM_VARS = {
+  "--bg": "#0A0E15", "--surface": "#131A24", "--ink": "#E9EDF5", "--muted": "#93A1B5",
+  "--faint": "#66748A", "--border": "rgba(255,255,255,0.08)", "--accent": "#AAB6C6",
+  "--accent-soft": "rgba(170,182,198,0.14)", "--shadow-tab": "0 1px 2px rgba(0,0,0,0.5)",
+  "--font-display": "'Syne',system-ui", "--font-body": "'Inter',system-ui,sans-serif", "--font-mono": "'DM Mono',monospace",
+};
+
 // ─── hooks ────────────────────────────────────────────────────────────────────
 function useIsMobile(bp = 768) {
   const [m, setM] = useState(() => typeof window !== "undefined" && window.innerWidth < bp);
@@ -158,9 +170,11 @@ export default function Shell() {
   const session = useSession();
   const isMobile = useIsMobile();
   const [active, setActive] = useState(() => (typeof localStorage !== "undefined" && localStorage.getItem("cc_active_app")) || "zts");
+  const [systemOpen, setSystemOpen] = useState(false);
 
   const pick = useCallback((a) => {
     setActive(a);
+    setSystemOpen(false);
     try { localStorage.setItem("cc_active_app", a); } catch {}
   }, []);
 
@@ -185,7 +199,7 @@ export default function Shell() {
   const Tool = TOOLS[active];
 
   return (
-    <div data-app={active} data-theme={m.mode} style={{ ...cssVars(active), minHeight: "100vh", background: "var(--bg)", color: "var(--ink)", fontFamily: "var(--font-body)", transition: `background ${M.durSlow} ${M.easeStd}` }}>
+    <div data-app={systemOpen ? "system" : active} data-theme={systemOpen ? "dark" : m.mode} style={{ ...(systemOpen ? PLATFORM_VARS : cssVars(active)), minHeight: "100vh", background: "var(--bg)", color: "var(--ink)", fontFamily: "var(--font-body)", transition: `background ${M.durSlow} ${M.easeStd}` }}>
       {/* Shell top bar — the ONE global chrome, themed to the active tool */}
       <div style={{
         position: "sticky", top: 0, zIndex: 100, height: 52, display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -202,15 +216,25 @@ export default function Shell() {
           <AppToggle active={active} onPick={pick} compact={isMobile} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => setSystemOpen((o) => !o)} title="System — usage, minds & agents across every tool" style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            background: systemOpen ? "var(--accent-soft)" : "none", border: "1px solid var(--border)", borderRadius: 7,
+            color: systemOpen ? "var(--ink)" : "var(--muted)", fontSize: 10.5, padding: "5px 10px", cursor: "pointer",
+            fontWeight: 700, fontFamily: "'Syne',system-ui", letterSpacing: "0.06em", textTransform: "uppercase",
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: systemOpen ? "var(--ink)" : "var(--faint)" }} />System
+          </button>
           {!isMobile && (
             <button onClick={() => auth.signOut()} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 7, color: "var(--muted)", fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: "'Syne',system-ui" }}>Sign out</button>
           )}
         </div>
       </div>
 
-      {/* The active tool, lazy-loaded */}
+      {/* System hub (cross-tool) or the active tool, both lazy-loaded */}
       <Suspense fallback={<div style={{ padding: 24 }}><SkeletonBoard /></div>}>
-        {Tool ? <Tool key={active} /> : <ComingSoon app={active} />}
+        {systemOpen
+          ? <System onExit={() => setSystemOpen(false)} onOpenTool={pick} />
+          : Tool ? <Tool key={active} /> : <ComingSoon app={active} />}
       </Suspense>
     </div>
   );
