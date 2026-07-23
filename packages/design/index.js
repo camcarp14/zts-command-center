@@ -49,11 +49,14 @@ const EMERALD = {
   accentSoft: "rgba(14,159,110,0.08)", accentLine: "rgba(14,159,110,0.22)",
   accentInk: "#06281C", focusRing: "0 0 0 3px rgba(14,159,110,0.32)",
 };
-const GOLD = {
-  accent: "#B68A2E", accentHi: "#C8A04A", accentDeep: "#A87C2E",
-  accentGrad: "linear-gradient(135deg, #C8A04A 0%, #A87C2E 100%)",
-  accentSoft: "rgba(184,145,58,0.07)", accentLine: "rgba(184,145,58,0.22)",
-  accentInk: "#1A1206", focusRing: "0 0 0 3px rgba(184,145,58,0.32)",
+// Clarify's "brass on midnight" — the app runs a dark navy canvas now (it
+// migrated off the light gold theme), so the accent is the brighter dark-tuned
+// brass and the neutrals are navy, not white.
+const BRASS = {
+  accent: "#C9A557", accentHi: "#E3C27E", accentDeep: "#8F7434",
+  accentGrad: "linear-gradient(135deg, #E3C27E 0%, #A9853C 100%)",
+  accentSoft: "rgba(201,165,87,0.12)", accentLine: "rgba(201,165,87,0.30)",
+  accentInk: "#151005", focusRing: "0 0 0 3px rgba(201,165,87,0.34)",
 };
 const AMBER = {
   accent: "#FFB224", accentHi: "#FFC155", accentDeep: "#E09000",
@@ -101,9 +104,24 @@ const aliasFor = (a, ramp) => {
   return {};
 };
 
+// Clarify's exact navy neutrals (transcribed from its theme.js), distinct from
+// Runway's near-black dark.
+const CLARIFY_DARK = {
+  mode: "dark",
+  bg: "#0B0F1A", surface: "#141B2C", surface2: "#1B2438", subtle: "#0F1626",
+  ink: "#E9EDF5", inkDeep: "#F7F9FC", muted: "#94A1B5", faint: "#66738A",
+  ghost: "#525E74", placeholder: "#5A6780",
+  line: "rgba(255,255,255,0.085)", lineSoft: "rgba(255,255,255,0.055)", lineStrong: "rgba(255,255,255,0.16)", lineInk: "rgba(255,255,255,0.07)",
+  good: "#3ECF8E", goodHi: "#5EE0A8", info: "#6EA8FE", warn: "#F5B84D", warnHi: "#FFC96B", bad: "#F87171", pink: "#F472B6",
+  shadowCard: "0 1px 2px rgba(0,0,0,0.5), 0 8px 30px rgba(0,0,0,0.4)",
+  shadowTab: "0 1px 2px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.45)",
+  shadowPopover: "0 10px 30px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45)",
+  shadowModal: "0 24px 70px rgba(0,0,0,0.65), 0 8px 24px rgba(0,0,0,0.5)",
+};
+
 const APP_DEF = {
   zts: { base: LIGHT, ramp: EMERALD, label: "ZTS", brand: "Zero To Secure" },
-  clarify: { base: LIGHT, ramp: GOLD, label: "Clarify", brand: "Clarify Outreach" },
+  clarify: { base: CLARIFY_DARK, ramp: BRASS, label: "Clarify", brand: "Clarify Outreach" },
   runway: { base: DARK, ramp: AMBER, label: "Runway", brand: "Runway" },
 };
 

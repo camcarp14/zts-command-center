@@ -13,6 +13,7 @@
     "@cc/ui": "*",
     "@cc/supabase": "*",
     "@app/zts": "*",
+    "@app/clarify": "*",
     "@supabase/supabase-js": "^2.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

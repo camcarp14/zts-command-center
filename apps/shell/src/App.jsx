@@ -19,7 +19,7 @@ import { auth, isConfigured } from "@cc/supabase";
 // here renders the "coming in this build" panel so the toggle always works.
 const TOOLS = {
   zts: lazy(() => import("@app/zts")),
-  // clarify: lazy(() => import("@app/clarify")),  // increment 2
+  clarify: lazy(() => import("@app/clarify")),
   // runway: lazy(() => import("@app/runway")),    // increment 3
 };
 

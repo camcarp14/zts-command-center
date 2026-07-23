@@ -17,6 +17,7 @@ export default defineConfig({
       "@cc/ui": r("../../packages/ui/index.jsx"),
       "@cc/supabase": r("../../packages/supabase/index.js"),
       "@app/zts": r("../zts/src/Root.jsx"),
+      "@app/clarify": r("../clarify/src/Root.jsx"),
     },
   },
   server: { fs: { allow: [r("../../")] } },
