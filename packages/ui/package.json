@@ -1,0 +1,16 @@
+{
+  "name": "@cc/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.jsx",
+  "exports": {
+    ".": "./index.jsx"
+  },
+  "dependencies": {
+    "@cc/design": "*"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}
