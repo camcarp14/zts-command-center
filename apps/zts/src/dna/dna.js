@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// ZTS DNA — the genome layer for the Zero To Secure Command Center.
+// ZTS DNA — the genome layer for the Zero To Secure module of The Pentagon.
 //
 // Nodes are aspects of the marketing mind (identity, principles, knowledge,
 // signals, skills, goals); edges are weighted synapses. The graph is FUNCTIONAL:

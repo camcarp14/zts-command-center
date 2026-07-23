@@ -12,7 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { appMeta, cssVars, APPS } from "@cc/design";
-import { SkeletonBoard, EmptyIcon, M } from "@cc/ui";
+import { SkeletonBoard, EmptyIcon, M, useIsMobile } from "@cc/ui";
 import { auth, isConfigured } from "@cc/supabase";
 
 // Lazily-mounted tools. Wired in per Phase-C increment; a tool without an entry
@@ -36,16 +36,6 @@ const PLATFORM_VARS = {
 };
 
 // ─── hooks ────────────────────────────────────────────────────────────────────
-function useIsMobile(bp = 768) {
-  const [m, setM] = useState(() => typeof window !== "undefined" && window.innerWidth < bp);
-  useEffect(() => {
-    const on = () => setM(window.innerWidth < bp);
-    window.addEventListener("resize", on);
-    return () => window.removeEventListener("resize", on);
-  }, [bp]);
-  return m;
-}
-
 function useSession() {
   const [session, setSession] = useState(undefined); // undefined = still checking
   useEffect(() => {
