@@ -5,11 +5,14 @@ houses three tools under a single shell. A top-of-screen toggle (a bottom bar on
 mobile) switches between them; each is lazy-loaded and re-skins the whole page to
 its own accent while sharing one dark design language.
 
-| Module | What it is |
-|---|---|
-| **ZTS** | Zero To Secure's creator registry + content studio (light / emerald) |
-| **Clarify** | Outreach & pipeline CRM (dark / brass) |
-| **Runway** | Job-search command board (dark / amber) |
+All three share one dark "midnight" canvas (drawn from Clarify's design) and
+differ only by accent, so they read as one product:
+
+| Module | What it is | Accent |
+|---|---|---|
+| **ZTS** | Zero To Secure's creator registry + content studio | emerald |
+| **Clarify** | Outreach & pipeline CRM | brass |
+| **Runway** | Job-search command board | violet |
 
 Above them all sits **System** — a cross-tool hub that merges usage, the neural
 "minds" (DNA), and the agent rosters from every module into one place.
