@@ -7,7 +7,7 @@ break when a package updates. Start it from the factory directory:
 
     python bridge.py            # serves http://127.0.0.1:8765
 
-The Command Center's Studio tab auto-detects it. Works from the deployed
+The Pentagon's Studio tab auto-detects it. Works from the deployed
 (https) app too: Chrome's Private Network Access preflight is answered with
 Access-Control-Allow-Private-Network, and localhost is a trustworthy origin
 so mixed content rules don't block it.
@@ -23,7 +23,7 @@ Endpoints:
                                             duration, has_final, has_review, package } ]
     GET  /projects/<name>/review     -> { markdown } (latest REVIEW_vN.md)
     POST /projects/<name>/approve    -> { ok, approved_version }
-    POST /briefs                     -> body: brief JSON from the Command Center;
+    POST /briefs                     -> body: brief JSON from The Pentagon;
                                         writes briefs/<date>_<slug>.md (+.json)
                                         -> { ok, path, cli }
 """
@@ -44,7 +44,7 @@ PORT = 8765
 # the same browser can't read project scripts or drop briefs through the
 # user's browser. Add origins here if the app moves.
 ALLOWED_ORIGINS = {
-    "https://zts-command-center.netlify.app",
+    "https://the-pentagon.netlify.app",
     "http://localhost:5173", "http://localhost:5174", "http://localhost:5175",
     "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175",
 }
@@ -111,7 +111,7 @@ def write_brief(body: dict):
     lines = [
         f"# Production brief — {body.get('title') or slug}",
         "",
-        f"*Sent from ZTS Command Center · {datetime.datetime.now():%Y-%m-%d %H:%M}*",
+        f"*Sent from The Pentagon · {datetime.datetime.now():%Y-%m-%d %H:%M}*",
         "",
         f"**Type:** {body.get('type', '—')}",
         f"**Topic:** {body.get('topic', '—')}",
@@ -254,5 +254,5 @@ if __name__ == "__main__":
     print(f"shorts-factory bridge v{VERSION}")
     print(f"  root:     {ROOT}")
     print(f"  serving:  http://127.0.0.1:{PORT}")
-    print("  the ZTS Command Center Studio tab will find it automatically.\n")
+    print("  The Pentagon's Studio tab will find it automatically.\n")
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

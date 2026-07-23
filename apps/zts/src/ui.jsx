@@ -4,37 +4,30 @@
 // gold). Everything here is additive: import what a view needs, nothing here
 // reaches into business logic.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { theme, M } from "@cc/design";
+export { M };
 
-// ZTS's working palette lives inline in App.jsx (the green/navy T object);
-// these mirror the handful of values the primitives need. theme.js in this
-// repo holds the *Clarify* gold palette and is not what this app renders with.
+// The primitives need a handful of palette values; derive them from the one
+// ZTS source (@cc/design's midnight base + emerald accent) so they render dark
+// alongside the rest of the app instead of drifting on a private copy.
+const t = theme("zts");
 const U = {
-  ink: "#0B1220",
-  sub: "#64748B",
-  faint: "#8A97A8",
-  green: "#0E9F6E",
-  greenDeep: "#0A7A54",
-  greenGrad: "linear-gradient(135deg, #12B886 0%, #0A7A54 100%)",
-  amber: "#F59E0B",
-  red: "#DC2626",
-  surface: "#FFFFFF",
-  subtle: "#F8FAFC",
-  line: "rgba(15,23,42,0.06)",
-  fontDisplay: "'Syne', system-ui",
-  fontBody: "'Inter', system-ui, sans-serif",
-  fontMono: "'DM Mono', monospace",
-  shadowPopover: "0 8px 24px rgba(15,23,42,0.1), 0 2px 8px rgba(15,23,42,0.06), 0 0 0 1px rgba(15,23,42,0.05)",
-  shadowModal: "0 32px 80px rgba(15,23,42,0.22), 0 8px 24px rgba(15,23,42,0.12)",
-};
-
-// Motion vocabulary — same curves as Clarify so the two apps feel like siblings.
-export const M = {
-  easeOut: "cubic-bezier(0.16, 1, 0.3, 1)",
-  easeSpring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
-  easeStd: "cubic-bezier(0.4, 0, 0.2, 1)",
-  durFast: "0.12s",
-  durBase: "0.2s",
-  durSlow: "0.32s",
+  ink: t.ink,
+  sub: t.muted,
+  faint: t.faint,
+  green: t.accent,
+  greenDeep: t.accentDeep,
+  greenGrad: t.accentGrad,
+  amber: t.warn,
+  red: t.bad,
+  surface: t.surface,
+  subtle: t.subtle,
+  line: t.line,
+  fontDisplay: t.fontDisplay,
+  fontBody: t.fontBody,
+  fontMono: t.fontMono,
+  shadowPopover: t.shadowPopover,
+  shadowModal: t.shadowModal,
 };
 
 const reduceMotion = () =>
@@ -74,7 +67,7 @@ export function AnimatedNumber({ value, format, duration = 700, style }) {
 
 // ─── Skeletons — shimmer blocks (App.jsx injects @keyframes shimmer) ─────────
 const shimmerStyle = (extra) => ({
-  background: "linear-gradient(90deg, rgba(15,23,42,0.05) 25%, rgba(15,23,42,0.1) 37%, rgba(15,23,42,0.05) 63%)",
+  background: "linear-gradient(90deg, rgba(255,255,255,0.045) 25%, rgba(255,255,255,0.09) 37%, rgba(255,255,255,0.045) 63%)",
   backgroundSize: "400% 100%",
   animation: "shimmer 1.6s ease-in-out infinite",
   ...extra,
@@ -144,7 +137,7 @@ export function EmptyState({ icon = "inbox", tint = U.green, title, sub, action,
       textAlign: "center",
       padding: compact ? "28px 20px" : "52px 32px",
       borderRadius: "16px",
-      border: dashed ? "1px dashed rgba(15,23,42,0.1)" : "none",
+      border: dashed ? "1px dashed rgba(255,255,255,0.12)" : "none",
       background: dashed ? "rgba(255,255,255,0.5)" : "transparent",
       ...style,
     }}>
@@ -198,7 +191,7 @@ export function useToast() {
 }
 
 const TOAST_TONES = {
-  default: { border: "rgba(15,23,42,0.1)", dot: U.ink },
+  default: { border: "rgba(255,255,255,0.12)", dot: U.ink },
   success: { border: "rgba(14,159,110,0.3)", dot: U.green },
   error: { border: "rgba(220,38,38,0.3)", dot: U.red },
   warning: { border: "rgba(245,158,11,0.3)", dot: U.amber },
@@ -293,7 +286,7 @@ export function CommandPalette({ open, onClose, actions }) {
             placeholder="Jump to a tab, creator, Short, or action…"
             style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "14px", color: U.ink, fontFamily: U.fontBody }}
           />
-          <kbd style={{ fontSize: "10px", fontFamily: U.fontMono, color: U.faint, background: U.subtle, border: "1px solid rgba(0,0,0,0.08)", borderRadius: "5px", padding: "2px 6px" }}>esc</kbd>
+          <kbd style={{ fontSize: "10px", fontFamily: U.fontMono, color: U.faint, background: U.subtle, border: "1px solid rgba(255,255,255,0.1)", borderRadius: "5px", padding: "2px 6px" }}>esc</kbd>
         </div>
         <div style={{ overflowY: "auto", padding: "8px", flex: 1 }}>
           {filtered.length === 0 ? (

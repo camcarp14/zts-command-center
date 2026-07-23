@@ -1,18 +1,31 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// @cc/ui — the shared "feel" layer for every tool in the Command Center.
+// @cc/ui — the shared "feel" layer for every tool in The Pentagon.
 //
-// One canonical copy of the primitives that used to be duplicated three times
-// (ZTS ported Clarify's; Runway had its own). Motion, skeletons, empty states,
-// toasts, and the command palette — all accent-driven off CSS variables
-// (var(--accent), var(--surface), var(--ink), …) that @cc/design emits, so a
-// single component renders correctly on the light canvas (ZTS/Clarify) AND the
-// dark canvas (Runway) with no per-tool forks. Nothing here reaches into
-// business logic; import what a view needs.
+// One canonical copy of the primitives that used to be duplicated three times.
+// Motion, skeletons, empty states, toasts, the command palette, and the
+// useIsMobile hook — all accent-driven off CSS variables (var(--accent),
+// var(--surface), var(--ink), …) that @cc/design emits, so a single component
+// renders correctly for every tool on the shared midnight canvas with no
+// per-tool forks. Nothing here reaches into business logic; import what a view
+// needs.
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { M } from "@cc/design";
 
 export { M };
+
+// One responsive hook for the whole platform. Each surface passes the breakpoint
+// it wants (phones ~680, tablets ~820, the shell chrome 768) instead of every
+// app re-implementing the same resize listener.
+export function useIsMobile(bp = 768) {
+  const [m, setM] = useState(() => typeof window !== "undefined" && window.innerWidth < bp);
+  useEffect(() => {
+    const on = () => setM(window.innerWidth < bp);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, [bp]);
+  return m;
+}
 
 // Accent + neutrals resolve at render against the nearest ancestor that set the
 // design CSS vars (the shell sets them per active app; standalone apps set them
