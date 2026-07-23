@@ -4,7 +4,7 @@
 //   SHOPIFY_ADMIN_TOKEN — Admin API access token (from a custom app with write_content scope)
 //   SHOPIFY_BLOG_ID     — the numeric blog id (Shopify admin → Online Store → Blog posts → check URL, or GET /admin/api/2024-01/blogs.json)
 
-const { json, error, methodGuard } = require("./_shared/response");
+const { json, error, methodGuard } = require("./_shared/response.cjs");
 
 exports.handler = async (event) => {
   const guard = methodGuard(event, "POST");

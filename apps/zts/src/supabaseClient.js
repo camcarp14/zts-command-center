@@ -35,9 +35,15 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   );
 }
 
-// ZTS tables live in the "zts" schema of the shared clarify-outreach
-// Supabase project (consolidated 2026-07); auth stays on the default schema.
+// ZTS tables live in the "zts" schema of the shared Pentagon Supabase project
+// (consolidated 2026-07); auth stays on the default schema.
+//
+// autoRefreshToken:false is deliberate: under the shell, three tool clients
+// share one session (same storage key). If each auto-refreshed, they'd race on
+// the single refresh token ("token already used" → random sign-outs). The shell's
+// @cc/supabase client owns refresh; persistSession keeps this client reading the
+// shared token, and GoTrue syncs the refreshed session to it via storage events.
 export const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: "zts" } })
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: "zts" }, auth: { persistSession: true, autoRefreshToken: false } })
     : null;

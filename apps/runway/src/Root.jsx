@@ -34,7 +34,9 @@ const EMBED_OVERRIDES = `
   .rail .nav-item { flex: 0 0 auto; }
   .rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: 14px; padding: 0; font-size: 12px; }
   .rail-foot .btn { display: none; }   /* the shell owns sign-out */
-  .main { max-width: 1240px; margin: 0 auto; width: 100%; }
+  /* Let the inner .pagefade own the width (reading pages cap at 1220, the
+     kanban breaks out to 1580) instead of clamping the board to a narrow column. */
+  .main { max-width: 1580px; margin: 0 auto; width: 100%; }
 }
 `;
 

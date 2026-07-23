@@ -16,7 +16,6 @@ const U = {
   sub: t.muted,
   faint: t.faint,
   green: t.accent,
-  greenDeep: t.accentDeep,
   greenGrad: t.accentGrad,
   amber: t.warn,
   red: t.bad,

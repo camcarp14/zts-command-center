@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp, STAGES, stageLabel } from './lib/store.jsx';
 import { ToastProvider, CommandK, SkBoard, SkLine, ErrorState, useToast } from './ui/primitives.jsx';
 import Login from './pages/Login.jsx';
@@ -49,7 +49,6 @@ function Shell() {
   const { session, jobs, loadError, refresh, moveStage, boards, runScan } = useApp();
   const toast = useToast();
   const location = useLocation();
-  const navigate = useNavigate();
 
   // auto-scan watched boards on open, at most once per session and only when
   // the last scan is stale — new roles appear without hunting through tabs

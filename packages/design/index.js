@@ -140,6 +140,7 @@ export function cssVars(app = "zts") {
     "--good-soft": t.mode === "dark" ? "rgba(79,214,148,0.13)" : "rgba(5,150,105,0.10)",
     "--bad": t.bad,
     "--bad-soft": t.mode === "dark" ? "rgba(255,111,111,0.12)" : "rgba(220,38,38,0.08)",
+    "--warn": t.warn,
     "--info": t.info,
     "--shadow-card": t.shadowCard,
     "--shadow-tab": t.shadowTab,
@@ -157,29 +158,4 @@ export function cssVars(app = "zts") {
     "--ease-spring": M.easeSpring,
     "--focus-ring": t.focusRing,
   };
-}
-
-// Serialize cssVars(app) into a CSS declaration body (no selector), e.g. for a
-// `[data-app="runway"] { … }` rule or a mount container's style attribute.
-export function cssVarsText(app = "zts") {
-  const v = cssVars(app);
-  return Object.entries(v).map(([k, val]) => `${k}: ${val};`).join(" ");
-}
-
-// ─── Shared style fragments — spread, then override locally ──────────────────
-// Mode-aware so a card reads correctly on both the light and dark canvases.
-export function fragments(app = "zts") {
-  const t = theme(app);
-  return {
-    card: { background: t.surface, borderRadius: radii.rLg, border: `1px solid ${t.lineInk}`, boxShadow: t.shadowCard },
-    sectionLabel: { fontSize: "11px", fontWeight: 700, color: t.muted, textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: fonts.fontDisplay },
-    inputBase: { width: "100%", padding: "10px 14px", background: t.subtle, border: `1px solid ${t.line}`, borderRadius: radii.rSm, fontSize: "14px", color: t.ink, outline: "none", boxSizing: "border-box" },
-    selectBase: { background: t.subtle, border: `1px solid ${t.line}`, borderRadius: radii.rSm, padding: "6px 10px", fontSize: "11px", color: t.muted, cursor: "pointer", outline: "none", fontFamily: fonts.fontBody },
-  };
-}
-
-// One severity vocabulary shared across tools.
-export function severity(app = "zts") {
-  const t = theme(app);
-  return { critical: t.bad, warning: t.warn, info: t.muted, pass: t.good };
 }

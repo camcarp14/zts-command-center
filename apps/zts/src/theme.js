@@ -3,7 +3,7 @@
 // and Runway); its only distinguishing mark is the emerald accent. These keys
 // keep ZTS's historical names (card, sub, navy, amber, cardShadow…) so every
 // inline style across the app resolves unchanged — it just renders dark now.
-import { theme, M } from "@cc/design";
+import { theme } from "@cc/design";
 
 const t = theme("zts"); // midnight base + emerald ramp (+ green* legacy aliases)
 
@@ -29,5 +29,3 @@ export const T = {
 // Display / mono fonts as standalone consts (App.jsx references them directly).
 export const syne = "'Syne', system-ui";
 export const mono = "'DM Mono', monospace";
-
-export { M };

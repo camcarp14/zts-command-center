@@ -250,10 +250,10 @@ function Agents() {
               {ctrl.observeOnly && <StatusPill on={false} label="Observe-only" />}
               <StatusPill on={!!worker.running} label={worker.running ? "DNA worker on" : "DNA worker off"} />
             </div>
-            {(ctrl.dollarsPerHour != null || ctrl.cadenceSec != null) && (
+            {(ctrl.hourlyCostCap != null || ctrl.cadenceSec != null) && (
               <div style={{ fontSize: 11.5, color: P.muted, marginTop: 11, display: "flex", gap: 16 }}>
                 {ctrl.cadenceSec != null && <span>cadence {ctrl.cadenceSec}s</span>}
-                {ctrl.dollarsPerHour != null && <span>cap {fmt$(ctrl.dollarsPerHour)}/hr</span>}
+                {ctrl.hourlyCostCap != null && <span>cap {fmt$(ctrl.hourlyCostCap)}/hr</span>}
               </div>
             )}
           </Card>

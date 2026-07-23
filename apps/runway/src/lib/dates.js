@@ -41,8 +41,6 @@ export const fmtDay = (d) =>
 export const fmtDateTime = (d) =>
   d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
 
-export const daysAgo = (d) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
-
 // input[type=date] helper — local date, not UTC-shifted
 export const isoDay = (d = new Date()) => {
   const x = new Date(d);
