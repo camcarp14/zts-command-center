@@ -3,7 +3,7 @@ import { REGIONS, dnaBus } from "./dna.js";
 
 // ════════════════════════════════════════════════════════════════════════════
 // MIND CANVAS — the living picture of the ZTS genome, rendered on the app's
-// LIGHT canvas (#F4F5F8). One <svg>, one rAF loop, zero per-frame React. The
+// dark MIDNIGHT canvas (#0B0F1A). One <svg>, one rAF loop, zero per-frame React. The
 // force sim (link springs + pairwise repulsion + region anchors + mild
 // centering) lives entirely in refs and writes transforms imperatively to
 // element refs kept in Maps — React re-renders only on coarse events
@@ -14,38 +14,37 @@ import { REGIONS, dnaBus } from "./dna.js";
 // prefers-reduced-motion drops to a fully static render: synchronous settle,
 // highlight-only pulses, no ambient dust, no rAF at all.
 //
-// LIGHT-THEME PORT of the proven Clarify dark canvas. The physics, gestures,
-// pulse scheduler, auto-fit camera, keyboard access, reduced-motion fallback,
-// and cleanup are byte-for-byte the same behavior; ONLY the paint changes:
-// solid region-colored nodes + soft SVG glow (not dark radial orbs), emerald/
-// red synapses tuned for readability on white, ink labels with a WHITE halo,
-// faint ink specks, amber selection/focus, and white-glass overlays. There is
-// NO dark fill anywhere — the SVG is transparent over a single faint radial
-// wash on the host container (emerald top-left, navy hint top-right).
+// The proven Clarify DARK canvas, restored for ZTS on the shared midnight base.
+// The physics, gestures, pulse scheduler, auto-fit camera, keyboard access,
+// reduced-motion fallback, and cleanup are byte-for-byte the same behavior;
+// the paint is dark: region-colored nodes + soft SVG glow, brightened emerald/
+// red synapses, light labels with a DARK halo, faint light specks, a warm-gold
+// selection/focus (deliberately distinct from all the greens), and dark-glass
+// overlays. The SVG is transparent over a single faint radial wash on the host
+// container (emerald top-left, violet hint top-right).
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── Light design tokens (self-contained — App.jsx keeps its `T` module-local
-//    and does not export it, so the DNA canvas re-declares the light values it
-//    needs against the same palette the app renders). Every color here is AA on
-//    the #F4F5F8 canvas; region hues come from REGIONS[k].color in dna.js. ─────
+// ── Dark design tokens (self-contained — the DNA canvas re-declares the values
+//    it needs against the shared midnight palette). Region hues come from
+//    REGIONS[k].color in dna.js. ─────────────────────────────────────────────
 const T = {
-  bg: "#F4F5F8",                          // app canvas — used only for the label halo
-  surface: "#FFFFFF",                     // white surfaces (link-port fill)
-  ink: "#0B1220",                         // primary ink (labels, toast text)
-  sub: "#64748B",                         // muted text (HUD readouts + buttons)
-  line: "rgba(15,23,42,0.10)",            // hairline (HUD divider)
-  glassBorder: "rgba(15,23,42,0.06)",     // glass panel border
-  nodeStroke: "rgba(15,23,42,0.12)",      // 1px node outline
-  speckInk: "#0F172A",                    // ambient dust — dark ink at low opacity
-  green: "#0E9F6E",                       // excitatory synapse
-  greenHi: "#10B981",                     // activation particles + flare/fire highlight
-  red: "#DC2626",                         // inhibitory synapse (dashed)
-  amber: "#B68A2E",                       // selection / focus / droptarget / link-band accent
-  amberLine: "rgba(184,145,58,0.45)",     // amber hairline (port + padlock strokes, toast border)
-  focusRing: "rgba(184,145,58,0.32)",     // keyboard focus ring
-  glass: "rgba(255,255,255,0.9)",         // white glass overlay fill
-  shadow: "0 10px 30px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06)",
-  glow: "0 0 22px rgba(184,145,58,0.18)", // soft amber lift under the activation toast
+  bg: "#0B0F1A",                          // app canvas — used only for the label halo
+  surface: "#141B2C",                     // surfaces (link-port fill)
+  ink: "#E9EDF5",                         // primary ink (labels, toast text)
+  sub: "#94A1B5",                         // muted text (HUD readouts + buttons)
+  line: "rgba(255,255,255,0.10)",         // hairline (HUD divider)
+  glassBorder: "rgba(255,255,255,0.07)",  // glass panel border
+  nodeStroke: "rgba(255,255,255,0.20)",   // 1px node outline
+  speckInk: "#8FA0B8",                    // ambient dust — light at low opacity
+  green: "#3ECF8E",                       // excitatory synapse
+  greenHi: "#5EE0A8",                     // activation particles + flare/fire highlight
+  red: "#F87171",                         // inhibitory synapse (dashed)
+  amber: "#E3B341",                       // selection / focus / droptarget / link-band accent
+  amberLine: "rgba(227,179,65,0.45)",     // amber hairline (port + padlock strokes, toast border)
+  focusRing: "rgba(227,179,65,0.34)",     // keyboard focus ring
+  glass: "rgba(20,27,44,0.88)",           // dark glass overlay fill
+  shadow: "0 10px 30px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45)",
+  glow: "0 0 24px rgba(227,179,65,0.20)", // soft warm lift under the activation toast
   fontDisplay: "'Syne', ui-sans-serif, system-ui, sans-serif",
   fontMono: "'DM Mono', ui-monospace, SFMono-Regular, monospace",
   rPill: "999px",
@@ -223,7 +222,7 @@ const CSS = `
 .dna-canvas g[data-dna-node]:focus { outline: none; }
 .dna-canvas g[data-dna-node]:focus-visible .dna-core { stroke: ${T.amber} !important; stroke-width: 2.2px !important; }
 .dna-hudbtn { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 999px; color: ${T.sub}; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
-.dna-hudbtn:hover { background: rgba(15,23,42,0.06); color: ${T.ink}; }
+.dna-hudbtn:hover { background: rgba(255,255,255,0.07); color: ${T.ink}; }
 .dna-hudbtn:focus-visible { outline: none; box-shadow: 0 0 0 3px ${T.focusRing}; }
 @media (max-width: 860px) {
   /* App's mobile touch-target floor — a miss on a 26px HUD button falls
@@ -852,11 +851,12 @@ function MindCanvasImpl({
     <div
       style={{
         position: "relative", width: "100%", height, overflow: "hidden",
-        // The single faint radial wash — emerald top-left, navy hint top-right.
-        // No dark fill; the SVG below is transparent over this.
+        // The single faint radial wash — emerald top-left, violet hint top-right.
+        // No solid fill; the SVG below is transparent over this, over the app's
+        // midnight canvas.
         background:
-          "radial-gradient(70% 60% at 0% 0%, rgba(14,159,110,0.05), transparent 62%)," +
-          "radial-gradient(62% 55% at 100% 0%, rgba(11,17,32,0.03), transparent 58%)",
+          "radial-gradient(70% 60% at 0% 0%, rgba(62,207,142,0.07), transparent 62%)," +
+          "radial-gradient(62% 55% at 100% 0%, rgba(139,124,255,0.06), transparent 58%)",
       }}
     >
       <svg

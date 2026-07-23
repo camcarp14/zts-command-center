@@ -36,14 +36,14 @@ export const GENOME_KEY = "dna_genome";
 // ─── the region vocabulary — LIGHT palette, AA-legible on the ZTS white canvas.
 // Every consumer (canvas, view, worker) reads REGIONS[x].color, so this single
 // map is the source of truth for hue. Mirrors the dark reference's structure but
-// recolors for the light theme per the build contract.
+// hues brightened for the dark midnight canvas (same families, so meaning holds).
 export const REGIONS = {
-  identity:  { label: "Identity",   color: "#0A7A54", desc: "Who Zero To Secure is" },
-  principle: { label: "Principles", color: "#7C3AED", desc: "Rules that govern every action" },
-  knowledge: { label: "Knowledge",  color: "#2563EB", desc: "What it knows about the machine" },
-  signal:    { label: "Signals",    color: "#B68A2E", desc: "Inputs it weighs when deciding" },
-  skill:     { label: "Skills",     color: "#0E9F6E", desc: "Actions it can take" },
-  goal:      { label: "Goals",      color: "#EC4899", desc: "What it is driving toward" },
+  identity:  { label: "Identity",   color: "#2DD4A7", desc: "Who Zero To Secure is" },
+  principle: { label: "Principles", color: "#A78BFA", desc: "Rules that govern every action" },
+  knowledge: { label: "Knowledge",  color: "#6EA8FE", desc: "What it knows about the machine" },
+  signal:    { label: "Signals",    color: "#E3B341", desc: "Inputs it weighs when deciding" },
+  skill:     { label: "Skills",     color: "#3ECF8E", desc: "Actions it can take" },
+  goal:      { label: "Goals",      color: "#F472B6", desc: "What it is driving toward" },
 };
 
 // Compile order is MEANING, not alphabet: who you are → what you must never do

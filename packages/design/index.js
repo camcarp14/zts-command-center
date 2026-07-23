@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// @cc/design — the ONE token source for the Command Center.
+// @cc/design — the ONE token source for The Pentagon.
 //
-// Three tools live under one shell (ZTS · Clarify · Runway). They already
-// shared a font stack and motion curves; this package makes that explicit and
-// adds the two axes that actually differ per tool:
+// Three tools live under one shell (ZTS · Clarify · Runway). They now share ONE
+// dark canvas ("brass on midnight", inherited from Clarify) so they read as a
+// single product; the only axis that differs per tool is the ACCENT:
 //
-//   • MODE   — light (ZTS, Clarify) vs dark (Runway). Not just an accent swap;
-//              Runway ships a dark canvas, so the base neutrals flip too.
-//   • ACCENT — emerald (ZTS) / gold (Clarify) / amber (Runway).
+//   • ZTS      → emerald   #3ECF8E
+//   • Clarify  → brass     #C9A557
+//   • Runway   → violet    #8B7CFF
 //
 // Everything is emitted TWO ways so every tool can consume one source:
 //   • theme(app)   → a JS token object (for the inline-style apps: ZTS/Clarify)
@@ -43,57 +43,28 @@ export const M = {
 // Each entry is a full palette: base mode + neutrals + an accent ramp + the
 // semantic signals + that tool's legacy alias keys. Values transcribed from the
 // three live apps so migrating an app in is faithful, not approximate.
+// Emerald — ZTS. Tuned bright so it reads on the dark canvas; the deep stop is
+// the old ZTS green, kept for gradients/hover.
 const EMERALD = {
-  accent: "#0E9F6E", accentHi: "#12B886", accentDeep: "#0A7A54",
-  accentGrad: "linear-gradient(135deg, #12B886 0%, #0A7A54 100%)",
-  accentSoft: "rgba(14,159,110,0.08)", accentLine: "rgba(14,159,110,0.22)",
-  accentInk: "#06281C", focusRing: "0 0 0 3px rgba(14,159,110,0.32)",
+  accent: "#3ECF8E", accentHi: "#5EE0A8", accentDeep: "#0E9F6E",
+  accentGrad: "linear-gradient(135deg, #5EE0A8 0%, #0E9F6E 100%)",
+  accentSoft: "rgba(62,207,142,0.12)", accentLine: "rgba(62,207,142,0.30)",
+  accentInk: "#052B1C", focusRing: "0 0 0 3px rgba(62,207,142,0.34)",
 };
-// Clarify's "brass on midnight" — the app runs a dark navy canvas now (it
-// migrated off the light gold theme), so the accent is the brighter dark-tuned
-// brass and the neutrals are navy, not white.
+// Brass — Clarify. The signature "brass on midnight" accent (unchanged).
 const BRASS = {
   accent: "#C9A557", accentHi: "#E3C27E", accentDeep: "#8F7434",
   accentGrad: "linear-gradient(135deg, #E3C27E 0%, #A9853C 100%)",
   accentSoft: "rgba(201,165,87,0.12)", accentLine: "rgba(201,165,87,0.30)",
   accentInk: "#151005", focusRing: "0 0 0 3px rgba(201,165,87,0.34)",
 };
-const AMBER = {
-  accent: "#FFB224", accentHi: "#FFC155", accentDeep: "#E09000",
-  accentGrad: "linear-gradient(135deg, #FFC155 0%, #E09000 100%)",
-  accentSoft: "rgba(255,178,36,0.14)", accentLine: "rgba(255,178,36,0.35)",
-  accentInk: "#1A1204", focusRing: "0 0 0 3px rgba(255,178,36,0.34)",
-};
-
-// Light neutrals — ZTS and Clarify share this exact canvas.
-const LIGHT = {
-  mode: "light",
-  bg: "#F4F5F8", surface: "#FFFFFF", surface2: "#F8FAFC", subtle: "#F8FAFC",
-  ink: "#0F172A", inkDeep: "#0B1220", muted: "#64748B", faint: "#94A3B8",
-  ghost: "#8A97A8", placeholder: "#9AA6B6",
-  line: "rgba(0,0,0,0.08)", lineSoft: "rgba(0,0,0,0.06)", lineInk: "rgba(15,23,42,0.06)",
-  good: "#059669", goodHi: "#10B981", info: "#3B82F6", warn: "#D97706", warnHi: "#F59E0B",
-  bad: "#DC2626", pink: "#EC4899",
-  shadowCard: "0 1px 2px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04), 0 0 0 1px rgba(15,23,42,0.025)",
-  shadowTab: "0 1px 2px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.06)",
-  shadowPopover: "0 8px 24px rgba(15,23,42,0.1), 0 2px 8px rgba(15,23,42,0.06), 0 0 0 1px rgba(15,23,42,0.05)",
-  shadowModal: "0 32px 80px rgba(15,23,42,0.22), 0 8px 24px rgba(15,23,42,0.12)",
-};
-
-// Dark neutrals — Runway's canvas.
-const DARK = {
-  mode: "dark",
-  bg: "#0B0D12", surface: "#12151D", surface2: "#181D29", subtle: "#0E1118",
-  ink: "#E9E7E0", inkDeep: "#FFFFFF", muted: "#9AA1AE", faint: "#667085",
-  ghost: "#667085", placeholder: "#667085",
-  line: "rgba(255,255,255,0.08)", lineSoft: "rgba(255,255,255,0.06)", lineStrong: "rgba(255,255,255,0.16)",
-  lineInk: "rgba(255,255,255,0.08)",
-  good: "#4FD694", goodHi: "#4FD694", info: "#6AA9FF", warn: "#FFB224", warnHi: "#FFC155",
-  bad: "#FF6F6F", pink: "#EC4899",
-  shadowCard: "0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.35)",
-  shadowTab: "0 1px 2px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.4)",
-  shadowPopover: "0 8px 24px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4)",
-  shadowModal: "0 18px 60px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.45)",
+// Violet — Runway. A cool jewel tone, deliberately far from emerald and brass
+// so the three tools never read as the same accent (amber used to clash).
+const VIOLET = {
+  accent: "#8B7CFF", accentHi: "#A99BFF", accentDeep: "#6C5CE7",
+  accentGrad: "linear-gradient(135deg, #A99BFF 0%, #6C5CE7 100%)",
+  accentSoft: "rgba(139,124,255,0.14)", accentLine: "rgba(139,124,255,0.32)",
+  accentInk: "#120A2E", focusRing: "0 0 0 3px rgba(139,124,255,0.34)",
 };
 
 // Historical alias keys per app, so existing call sites keep resolving after
@@ -104,11 +75,11 @@ const aliasFor = (a, ramp) => {
   return {};
 };
 
-// Clarify's exact navy neutrals (transcribed from its theme.js), distinct from
-// Runway's near-black dark.
-const CLARIFY_DARK = {
+// MIDNIGHT — the one shared canvas for all three tools (Clarify's original
+// "brass on midnight" navy). Only the accent ramp differs per tool now.
+const MIDNIGHT = {
   mode: "dark",
-  bg: "#0B0F1A", surface: "#141B2C", surface2: "#1B2438", subtle: "#0F1626",
+  bg: "#0B0F1A", surface: "#141B2C", surface2: "#1B2438", subtle: "#0F1626", raised: "#1B2438",
   ink: "#E9EDF5", inkDeep: "#F7F9FC", muted: "#94A1B5", faint: "#66738A",
   ghost: "#525E74", placeholder: "#5A6780",
   line: "rgba(255,255,255,0.085)", lineSoft: "rgba(255,255,255,0.055)", lineStrong: "rgba(255,255,255,0.16)", lineInk: "rgba(255,255,255,0.07)",
@@ -120,9 +91,9 @@ const CLARIFY_DARK = {
 };
 
 const APP_DEF = {
-  zts: { base: LIGHT, ramp: EMERALD, label: "ZTS", brand: "Zero To Secure" },
-  clarify: { base: CLARIFY_DARK, ramp: BRASS, label: "Clarify", brand: "Clarify Outreach" },
-  runway: { base: DARK, ramp: AMBER, label: "Runway", brand: "Runway" },
+  zts: { base: MIDNIGHT, ramp: EMERALD, label: "ZTS", brand: "Zero To Secure" },
+  clarify: { base: MIDNIGHT, ramp: BRASS, label: "Clarify", brand: "Clarify Outreach" },
+  runway: { base: MIDNIGHT, ramp: VIOLET, label: "Runway", brand: "Runway" },
 };
 
 export const APPS = ["zts", "clarify", "runway"];

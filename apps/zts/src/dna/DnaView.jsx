@@ -76,32 +76,32 @@ async function callClaude({ system, messages, model = "claude-haiku-4-5-20251001
   }
 }
 
-// ─── Light design tokens — the ZTS palette, re-declared (App.jsx keeps `T`
-//    module-local). Every value is AA on the #F4F5F8 canvas / white glass. The
-//    reference's "gold/brass" accent maps to ZTS amber-deep (#B68A2E) so it stays
-//    legible on white and matches the MindCanvas selection colour. `muted` is the
-//    AA text floor; `faint` is decoration only. ──────────────────────────────────
+// ─── Dark design tokens — the ZTS palette on the shared midnight canvas.
+//    Every value reads on the #0B0F1A canvas / dark glass. The compiled-mind
+//    "gold/brass" highlight family maps to ZTS's emerald accent so the DNA view
+//    carries the same identity as the rest of the app. `muted` is the text
+//    floor; `faint` is decoration only. ────────────────────────────────────────
 const T = {
-  ink: "#0B1220", inkDeep: "#0B1120", muted: "#64748B", faint: "#8A97A8",
-  surface: "#FFFFFF", subtle: "#F8FAFC", raised: "#EEF2F6",
-  line: "rgba(15,23,42,0.10)", lineSoft: "rgba(15,23,42,0.06)", lineInk: "rgba(15,23,42,0.12)",
-  green: "#0E9F6E", greenHi: "#10B981", red: "#DC2626", blue: "#2563EB", violet: "#7C3AED", amber: "#F59E0B",
-  // Brass accent family — ZTS amber-deep, AA on white; the compiled-mind highlight.
-  gold: "#B68A2E", goldSoft: "rgba(184,145,58,0.12)", goldLine: "rgba(184,145,58,0.40)",
-  goldGrad: "linear-gradient(135deg, #D4A43A 0%, #A97C1E 100%)", inkBrand: "#6E5518", textOnBrand: "#FFFFFF",
-  focusRing: "rgba(184,145,58,0.32)", glowBrass: "0 0 20px rgba(184,145,58,0.22)",
-  // App's Card shadow (spec: glass uses the app's cardShadow), plus modal lift.
-  cardShadow: "0 1px 2px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04), 0 0 0 1px rgba(15,23,42,0.02)",
-  shadowPopover: "0 10px 30px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06)",
-  shadowModal: "0 32px 80px rgba(15,23,42,0.22), 0 8px 24px rgba(15,23,42,0.12)",
+  ink: "#E9EDF5", inkDeep: "#F7F9FC", muted: "#94A1B5", faint: "#66738A",
+  surface: "#141B2C", subtle: "#0F1626", raised: "#1B2438",
+  line: "rgba(255,255,255,0.085)", lineSoft: "rgba(255,255,255,0.055)", lineInk: "rgba(255,255,255,0.07)",
+  green: "#3ECF8E", greenHi: "#5EE0A8", red: "#F87171", blue: "#6EA8FE", violet: "#A78BFA", amber: "#F5B84D",
+  // Accent family — ZTS emerald; the compiled-mind highlight (was brass on light).
+  gold: "#3ECF8E", goldSoft: "rgba(62,207,142,0.12)", goldLine: "rgba(62,207,142,0.30)",
+  goldGrad: "linear-gradient(135deg, #5EE0A8 0%, #0E9F6E 100%)", inkBrand: "#9BE3C0", textOnBrand: "#052B1C",
+  focusRing: "rgba(62,207,142,0.34)", glowBrass: "0 0 24px rgba(62,207,142,0.20)",
+  // Dark Card shadow (glass uses the app's cardShadow), plus modal lift.
+  cardShadow: "0 1px 2px rgba(0,0,0,0.5), 0 8px 30px rgba(0,0,0,0.4)",
+  shadowPopover: "0 10px 30px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45)",
+  shadowModal: "0 24px 70px rgba(0,0,0,0.65), 0 8px 24px rgba(0,0,0,0.5)",
   rPill: "999px", rLg: "16px", rMd: "12px", rSm: "9px",
   fontDisplay: "'Syne', system-ui", fontMono: "'DM Mono', monospace", fontBody: "'Inter', system-ui, sans-serif",
 };
 
 // Glass recipe for every floating panel — spec'd once so the whole overlay layer
-// reads as one material (white glass on the light canvas): the app's Card exactly.
+// reads as one material (dark glass on the midnight canvas): the app's Card.
 const GLASS = {
-  background: "rgba(255,255,255,0.9)",
+  background: "rgba(20,27,44,0.88)",
   backdropFilter: "blur(18px)",
   WebkitBackdropFilter: "blur(18px)",
   border: `1px solid ${T.lineSoft}`,
@@ -176,8 +176,8 @@ const VIEW_CSS = `
 .dna-scroll-x { scrollbar-width: none; }
 .dna-scroll-x::-webkit-scrollbar { display: none; }
 .dna-logrow { transition: background 0.15s ease; }
-.dna-logrow:hover { background: rgba(15,23,42,0.04); }
-.dna-menuitem:hover { background: rgba(15,23,42,0.05); }
+.dna-logrow:hover { background: rgba(255,255,255,0.04); }
+.dna-menuitem:hover { background: rgba(255,255,255,0.05); }
 .dna-view input[type="range"] { cursor: pointer; }
 @keyframes dnaGlyph { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(180deg); } }
 @media (max-width: 680px) {
@@ -203,8 +203,8 @@ function Pill({ label, value, brass, title }) {
 function Switch({ on, onClick, disabled, title }) {
   return (
     <div onClick={disabled ? undefined : onClick} title={title} role="switch" aria-checked={!!on}
-      style={{ width: "34px", height: "20px", borderRadius: "12px", background: on ? T.green : "rgba(15,23,42,0.14)", position: "relative", flexShrink: 0, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, transition: `background ${M.durFast} ${M.easeStd}` }}>
-      <div style={{ position: "absolute", top: "2px", left: on ? "16px" : "2px", width: "16px", height: "16px", borderRadius: "50%", background: "#FFFFFF", transition: `left ${M.durFast} ${M.easeStd}`, boxShadow: "0 1px 3px rgba(15,23,42,0.25)" }} />
+      style={{ width: "34px", height: "20px", borderRadius: "12px", background: on ? T.green : "rgba(255,255,255,0.14)", position: "relative", flexShrink: 0, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, transition: `background ${M.durFast} ${M.easeStd}` }}>
+      <div style={{ position: "absolute", top: "2px", left: on ? "16px" : "2px", width: "16px", height: "16px", borderRadius: "50%", background: "#FFFFFF", transition: `left ${M.durFast} ${M.easeStd}`, boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />
     </div>
   );
 }
@@ -236,7 +236,7 @@ function ModalSheet({ mobile, onClose, width = 560, side, children }) {
       style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 320, display: "flex", alignItems: mobile ? "flex-end" : right ? "stretch" : "center", justifyContent: right ? "flex-end" : "center", padding: mobile || right ? 0 : "20px", animation: `${mobile ? "slideup" : "fadein"} 0.18s ease both` }}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ background: T.surface, border: `1px solid ${T.lineInk}`, borderRadius: mobile ? "20px 20px 0 0" : right ? "16px 0 0 16px" : "18px", width: mobile ? "100%" : `${width}px`, maxWidth: mobile ? "100%" : "94vw", maxHeight: mobile ? "90vh" : right ? "100vh" : "88vh", height: right ? "100%" : "auto", display: "flex", flexDirection: "column", boxShadow: T.shadowModal, overflow: "hidden" }}>
-        {mobile && <div style={{ width: "36px", height: "4px", borderRadius: "3px", background: "rgba(15,23,42,0.16)", margin: "10px auto -2px", flexShrink: 0 }} />}
+        {mobile && <div style={{ width: "36px", height: "4px", borderRadius: "3px", background: "rgba(255,255,255,0.18)", margin: "10px auto -2px", flexShrink: 0 }} />}
         {children}
       </div>
     </div>
@@ -533,7 +533,7 @@ function DockBody({ ctrl, log, tasksToday, bump, replay, toast }) {
                     <div style={{ fontSize: "9px", color: T.faint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.detail}</div>
                   ) : null}
                 </div>
-                <span style={{ fontSize: "8.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: T.fontDisplay, color: T.muted, background: "rgba(15,23,42,0.05)", borderRadius: T.rPill, padding: "1px 7px", flexShrink: 0 }}>{e.kind}</span>
+                <span style={{ fontSize: "8.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: T.fontDisplay, color: T.muted, background: "rgba(255,255,255,0.06)", borderRadius: T.rPill, padding: "1px 7px", flexShrink: 0 }}>{e.kind}</span>
                 <span style={{ fontFamily: T.fontMono, fontSize: "9.5px", color: T.faint, flexShrink: 0 }}>{hhmm(e.ts)}</span>
                 {e.cost > 0 && <span style={{ fontFamily: T.fontMono, fontSize: "9.5px", color: T.amber, flexShrink: 0 }}>${e.cost.toFixed(3)}</span>}
               </div>

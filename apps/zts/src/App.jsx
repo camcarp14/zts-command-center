@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Fra
 import { supabase } from "./supabaseClient";
 import DOMPurify from "dompurify";
 import { AnimatedNumber, EmptyState, SkeletonLine, SkeletonRows, SkeletonBoard, CommandPalette, useToast, M } from "./ui.jsx";
+import { T, syne, mono } from "./theme.js";
 import { FactoryPanel, sendBriefToFactory } from "./factory.jsx";
 import { DnaView } from "./dna/DnaView.jsx";
 import { DnaWorker } from "./dna/dnaWorker.js";
@@ -115,17 +116,17 @@ function useGlobalStyles() {
       *, *::before, *::after { box-sizing: border-box; }
       * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
       html, body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
-      body { background-color: #F4F5F8; background-image: radial-gradient(1200px 600px at 12% -8%, rgba(245,158,11,0.05), transparent 60%), radial-gradient(1000px 700px at 100% 0%, rgba(14,159,110,0.045), transparent 55%); background-attachment: fixed; }
+      body { background-color: #0B0F1A; background-image: radial-gradient(1200px 600px at 12% -8%, rgba(62,207,142,0.06), transparent 60%), radial-gradient(1000px 700px at 100% 0%, rgba(110,168,254,0.05), transparent 55%); background-attachment: fixed; }
       ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.12); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(15,23,42,0.22); background-clip: padding-box; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); background-clip: padding-box; }
       textarea, input, select, button { font-family: 'Inter', system-ui, sans-serif; }
-      ::selection { background: rgba(245,158,11,0.22); color: #0B1220; }
+      ::selection { background: rgba(62,207,142,0.28); color: #F7F9FC; }
       button, a, [role="button"], input, select, textarea { transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease, opacity 0.16s ease; }
       button:not(:disabled):active { transform: translateY(0.5px); }
-      button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,0.32); }
-      input::placeholder, textarea::placeholder { color: #9AA6B6; }
+      button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(62,207,142,0.34); }
+      input::placeholder, textarea::placeholder { color: #5A6780; }
       @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
       @keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
       @keyframes spin { to { transform: rotate(360deg); } }
@@ -139,7 +140,7 @@ function useGlobalStyles() {
       html { overflow-x: hidden; }
       body { overflow-x: hidden; }
       @media (hover: hover) and (pointer: fine) {
-        .zts-card-hover:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(15,23,42,0.06), 0 16px 40px rgba(15,23,42,0.08); }
+        .zts-card-hover:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.07); }
       }
       @media (max-width: ${MOBILE_BP}px) {
         input, select, textarea { font-size: 16px !important; }
@@ -152,17 +153,8 @@ function useGlobalStyles() {
   }, []);
 }
 
-// ZTS palette: emerald/secure-green primary, deep navy, amber accent.
-const T = {
-  bg: "transparent", ink: "#0B1220", sub: "#64748B", faint: "#8A97A8",
-  green: "#0E9F6E", greenDeep: "#0A7A54", amber: "#F59E0B", amberDeep: "#B68A2E",
-  navy: "#0B1120", blue: "#3B82F6", red: "#DC2626", purple: "#7C3AED",
-  card: "#FFFFFF", line: "rgba(15,23,42,0.06)",
-  cardShadow: "0 1px 2px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04), 0 0 0 1px rgba(15,23,42,0.02)",
-  navyGrad: "linear-gradient(135deg, #16233B 0%, #0B1120 100%)",
-};
-const syne = "'Syne', system-ui";
-const mono = "'DM Mono', monospace";
+// ZTS palette (T), display/mono fonts, and motion (M) now live in ./theme.js —
+// the shared midnight canvas + emerald accent, derived from @cc/design.
 
 const Card = ({ children, style, onClick, hover }) => (
   <div onClick={onClick} className={hover ? "zts-card-hover" : undefined}
@@ -171,7 +163,7 @@ const Card = ({ children, style, onClick, hover }) => (
 const Label = ({ children, style }) => <div style={{ fontSize: "11px", fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: "0.13em", fontFamily: syne, ...style }}>{children}</div>;
 const Btn = ({ children, onClick, primary, disabled, style }) => (
   <button onClick={onClick} disabled={disabled}
-    style={{ padding: "10px 18px", background: disabled ? "rgba(15,23,42,0.06)" : primary ? T.navyGrad : "transparent", border: primary ? "1px solid rgba(245,158,11,0.2)" : `1px solid ${T.line}`, borderRadius: "10px", color: disabled ? T.faint : primary ? "#FFFFFF" : T.sub, fontSize: "12px", fontWeight: 700, cursor: disabled ? "default" : "pointer", fontFamily: syne, letterSpacing: "0.02em", ...style }}>{children}</button>
+    style={{ padding: "10px 18px", background: disabled ? "rgba(255,255,255,0.06)" : primary ? T.greenGrad : "transparent", border: primary ? `1px solid ${T.accentLine}` : `1px solid ${T.line}`, borderRadius: "10px", color: disabled ? T.faint : primary ? T.accentInk : T.sub, fontSize: "12px", fontWeight: 700, cursor: disabled ? "default" : "pointer", fontFamily: syne, letterSpacing: "0.02em", ...style }}>{children}</button>
 );
 
 // ─── Mobile retrofit — shared responsive helpers (desktop paths untouched) ───
@@ -201,7 +193,7 @@ function ModalShell({ onClose, isMobile, width = 560, children }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,18,32,0.5)", zIndex: 300, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", animation: `${isMobile ? "slideup" : "fadein"} 0.18s ease both` }}>
       <div onClick={e => e.stopPropagation()} style={{ background: T.card, borderRadius: isMobile ? "20px 20px 0 0" : "18px", width: isMobile ? "100%" : `${width}px`, maxWidth: isMobile ? "100%" : "94vw", maxHeight: isMobile ? "90vh" : "88vh", display: "flex", flexDirection: "column", boxShadow: isMobile ? "0 -12px 40px rgba(11,17,32,0.22)" : "0 32px 80px rgba(11,17,32,0.24)", overflow: "hidden" }}>
-        {isMobile && <div style={{ width: "36px", height: "4px", borderRadius: "3px", background: "rgba(15,23,42,0.16)", margin: "10px auto -4px", flexShrink: 0 }} />}
+        {isMobile && <div style={{ width: "36px", height: "4px", borderRadius: "3px", background: "rgba(255,255,255,0.18)", margin: "10px auto -4px", flexShrink: 0 }} />}
         {children}
       </div>
     </div>
@@ -227,7 +219,7 @@ const TabIcon = ({ tab, color, size = 21 }) => (
 // Fixed bottom tab bar — replaces the top segmented control on mobile only.
 function BottomNav({ view, setView, tabs }) {
   return (
-    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", background: "rgba(248,249,251,0.94)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(15,23,42,0.05)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", background: "rgba(11,15,26,0.92)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(0,0,0,0.4)", paddingBottom: "env(safe-area-inset-bottom)" }}>
       {tabs.map(t => {
         const active = view === t;
         const color = active ? T.greenDeep : T.faint;
@@ -336,8 +328,8 @@ function StageStepper({ stages, current, onMove, blockForward = false, blockBack
   const fwd = blockForward ? null : stepStage(stages, current, +1);
   const fwdLabel = fwd ? stages.find(s => s.key === fwd)?.label : null;
   const btn = (enabled) => ({
-    padding: "4px 9px", background: "transparent", border: `1px solid ${enabled ? T.line : "rgba(15,23,42,0.03)"}`,
-    borderRadius: "7px", fontSize: "10px", fontWeight: 700, color: enabled ? T.sub : "rgba(15,23,42,0.15)",
+    padding: "4px 9px", background: "transparent", border: `1px solid ${enabled ? T.line : "rgba(255,255,255,0.05)"}`,
+    borderRadius: "7px", fontSize: "10px", fontWeight: 700, color: enabled ? T.sub : "rgba(255,255,255,0.2)",
     cursor: enabled ? "pointer" : "default", fontFamily: syne,
   });
   return (
@@ -735,7 +727,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
       {children}
     </div>
   );
-  const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" };
+  const box = { background: T.subtle, border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" };
 
   const hPad = isMobile ? "18px" : "24px";
   return (
@@ -781,7 +773,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
                   <AssetBlock title="Title" asset="title"><div style={box}>{short.title || "—"}</div></AssetBlock>
                   <AssetBlock title="Description + tags" asset="description">
                     <div style={box}>{short.description || "—"}</div>
-                    {(short.tags || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "8px" }}>{short.tags.map((tag, i) => <span key={i} style={{ fontSize: "10px", color: T.sub, background: "#F1F4FA", padding: "2px 8px", borderRadius: "12px", fontFamily: mono }}>#{tag}</span>)}</div>}
+                    {(short.tags || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "8px" }}>{short.tags.map((tag, i) => <span key={i} style={{ fontSize: "10px", color: T.sub, background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: "12px", fontFamily: mono }}>#{tag}</span>)}</div>}
                   </AssetBlock>
                   {short.pinned_comment && <AssetBlock title="Pinned comment"><div style={box}>{short.pinned_comment}</div></AssetBlock>}
                 </>
@@ -898,7 +890,7 @@ function CreatorsView({ creators, setCreators, isMobile, loading, openSignal = 0
           <div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>Find, contact, and track YouTube creators for ZTS collabs — prioritized by audience fit.</div>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "8px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "12px", color: T.sub, background: "#FFF" }}>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "8px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "12px", color: T.sub, background: T.subtle }}>
             <option value="value">Best fit first</option>
             <option value="subs">Most subscribers</option>
             <option value="name">A → Z</option>
@@ -1032,7 +1024,7 @@ function CreatorDetail({ creator, onClose, onUpdate, onDelete, onMove, isMobile 
   };
 
   const input = { width: "100%", padding: "9px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, marginBottom: "8px" };
-  const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" };
+  const box = { background: T.subtle, border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" };
 
   return (
     <ModalShell onClose={onClose} isMobile={isMobile} width={560}>
@@ -1219,7 +1211,7 @@ function AgentsView({ isMobile }) {
   const Toggle = ({ on, onClick, label, sub }) => (
     <div onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: T.card, border: `1px solid ${T.line}`, borderRadius: "10px", cursor: "pointer" }}>
       <div><div style={{ fontSize: "12px", fontWeight: 600, color: T.ink }}>{label}</div>{sub && <div style={{ fontSize: "10px", color: T.faint, marginTop: "1px" }}>{sub}</div>}</div>
-      <div style={{ width: "38px", height: "22px", borderRadius: "12px", background: on ? T.green : "rgba(15,23,42,0.12)", position: "relative", flexShrink: 0, transition: "background 0.15s" }}><div style={{ position: "absolute", top: "2px", left: on ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#FFF", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} /></div>
+      <div style={{ width: "38px", height: "22px", borderRadius: "12px", background: on ? T.green : "rgba(255,255,255,0.14)", position: "relative", flexShrink: 0, transition: "background 0.15s" }}><div style={{ position: "absolute", top: "2px", left: on ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#FFF", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} /></div>
     </div>
   );
   const agentMeta = [["creatorScout","Creator Scout","Prime-fit creators un-contacted"],["production","Production Watcher","Shorts stuck or unscheduled"],["cadence","Cadence Monitor","Posting gaps"],["reply","Reply Sentinel","Creator replies waiting"],["pattern","Pattern Learner","Which Short types you produce"],["cost","Cost Sentinel","AI spend guardrail"]];
@@ -1240,7 +1232,7 @@ function AgentsView({ isMobile }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           <div style={{ textAlign: "right" }}><div style={{ fontSize: "9px", fontWeight: 700, color: ctrl.running ? "#7C93C9" : T.faint, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: syne }}>Passes</div><div style={{ fontSize: "13px", color: passFlash ? "#34D399" : ctrl.running ? "#E8EDF7" : T.sub, fontFamily: mono, fontWeight: passFlash ? 700 : 400 }}>{sm.get("engine_pass_count") || 0}{passFlash ? " ✓" : ""}</div></div>
-          <button onClick={runOnce} style={{ padding: "9px 14px", background: ctrl.running ? "rgba(255,255,255,0.1)" : "rgba(15,23,42,0.04)", border: ctrl.running ? "1px solid rgba(255,255,255,0.2)" : `1px solid ${T.line}`, borderRadius: "9px", color: ctrl.running ? "#E8EDF7" : T.sub, fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: syne }}>⚡ Run pass now</button>
+          <button onClick={runOnce} style={{ padding: "9px 14px", background: ctrl.running ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)", border: ctrl.running ? "1px solid rgba(255,255,255,0.2)" : `1px solid ${T.line}`, borderRadius: "9px", color: ctrl.running ? "#E8EDF7" : T.sub, fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: syne }}>⚡ Run pass now</button>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "300px 1fr", gap: "16px", alignItems: "start" }}>
@@ -1263,7 +1255,7 @@ function AgentsView({ isMobile }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {feed.map(e => { const col = SEVC[e.signal] || T.faint; const ins = e.type === "insight"; return (
-                <div key={e.id} style={{ background: ins ? "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)" : T.card, borderRadius: "11px", border: ins ? "1px solid rgba(245,158,11,0.3)" : `1px solid ${T.line}`, borderLeft: `3px solid ${ins ? T.amber : col}`, padding: "13px 15px", display: "flex", gap: "12px" }}>
+                <div key={e.id} style={{ background: ins ? "linear-gradient(135deg, rgba(245,184,77,0.16) 0%, rgba(245,184,77,0.05) 100%)" : T.card, borderRadius: "11px", border: ins ? `1px solid ${T.accentLine}` : `1px solid ${T.line}`, borderLeft: `3px solid ${ins ? T.amber : col}`, padding: "13px 15px", display: "flex", gap: "12px" }}>
                   <span style={{ fontSize: "9px", fontWeight: 700, color: ins ? T.amberDeep : col, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: syne, flexShrink: 0, marginTop: "2px", minWidth: "56px" }}>{ins ? "✦ Insight" : e.type === "learning" ? "Learned" : e.type === "system" ? "System" : "Observed"}</span>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: "12px", color: T.ink, lineHeight: 1.55, fontWeight: ins ? 600 : 400 }}>{e.text}</div><div style={{ fontSize: "9px", color: T.faint, marginTop: "4px", fontFamily: mono }}>{e.agent} · {ago(new Date(e.ts).getTime())}</div></div>
                 </div>
@@ -1314,7 +1306,7 @@ function SeoView({ articles, setArticles, onAddArticle, isMobile, loading, openS
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
             <Label>Auto-draft cadence</Label>
-            <div onClick={() => { const on = !autoDraft; setAutoDraft(on); eng.set({ seoAutoDraft: on }); }} style={{ width: "38px", height: "22px", borderRadius: "12px", background: autoDraft ? T.green : "rgba(15,23,42,0.12)", position: "relative", cursor: "pointer", transition: "background 0.15s" }}>
+            <div onClick={() => { const on = !autoDraft; setAutoDraft(on); eng.set({ seoAutoDraft: on }); }} style={{ width: "38px", height: "22px", borderRadius: "12px", background: autoDraft ? T.green : "rgba(255,255,255,0.14)", position: "relative", cursor: "pointer", transition: "background 0.15s" }}>
               <div style={{ position: "absolute", top: "2px", left: autoDraft ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#FFF", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
             </div>
           </div>
@@ -1413,7 +1405,7 @@ function ComposeArticleModal({ keywords, onClose, onCreate, isMobile }) {
         <div style={{ fontSize: "12px", color: T.faint, marginBottom: "18px" }}>Claude drafts the full package — title tag, meta, outline, article, internal links — into your review queue.</div>
         <Label style={{ marginBottom: "8px" }}>Target keyword</Label>
         {kwList.length > 0 ? (
-          <select value={keyword} onChange={e => setKeyword(e.target.value)} style={{ width: "100%", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, background: "#FFF", marginBottom: "14px" }}>
+          <select value={keyword} onChange={e => setKeyword(e.target.value)} style={{ width: "100%", padding: "10px 12px", border: `1px solid ${T.line}`, borderRadius: "9px", fontSize: "13px", color: T.ink, background: T.subtle, marginBottom: "14px" }}>
             {kwList.map((k, i) => <option key={i} value={k}>{k}</option>)}
             <option value="">— let the agent pick from ZTS clusters —</option>
           </select>
@@ -1457,7 +1449,7 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
     } catch (e) { setPubResult({ error: e.message }); }
     setPublishing(false);
   };
-  const box = { background: "#F8FAFC", border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6 };
+  const box = { background: T.subtle, border: `1px solid ${T.line}`, borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: T.ink, lineHeight: 1.6 };
   const hPad = isMobile ? "18px" : "24px";
   return (
     <ModalShell onClose={onClose} isMobile={isMobile} width={720}>
@@ -1567,7 +1559,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}><Label>Agent Roster</Label><span onClick={() => onNavigate("agents")} style={{ fontSize: "10px", color: T.amberDeep, cursor: "pointer", fontWeight: 700 }}>Engine ›</span></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             {roster.map((a, i) => { const active = a.enabled && engCtrl.running; return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 11px", background: "#F8FAFC", borderRadius: "9px", border: `1px solid ${T.line}` }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 11px", background: T.subtle, borderRadius: "9px", border: `1px solid ${T.line}` }}>
                 <span style={{ width: "7px", height: "7px", borderRadius: "50%", flexShrink: 0, background: active ? T.green : a.enabled ? "#CBD5E1" : "#E2E8F0" }} />
                 <div style={{ minWidth: 0 }}><div style={{ fontSize: "11px", fontWeight: 700, color: T.ink, fontFamily: syne, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div><div style={{ fontSize: "9px", color: T.faint }}>{a.notes > 0 ? `${a.notes} note${a.notes!==1?"s":""}` : a.enabled ? "ready" : "off"}</div></div>
               </div>
@@ -1656,7 +1648,7 @@ function LoginScreen() {
 
   if (!supabase) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, color: T.ink, background: "#F4F5F8" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, color: T.ink, background: "#0B0F1A" }}>
         <div style={{ width: 380, maxWidth: "94vw", padding: "24px 26px", background: T.card, border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: T.cardShadow }}>
           <div style={{ fontSize: 13, fontWeight: 700, fontFamily: syne, marginBottom: 8 }}>Supabase isn't configured yet</div>
           <div style={{ fontSize: 12, color: T.sub, lineHeight: 1.6 }}>Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy — sign-in needs a real Supabase project to check against.</div>
@@ -1680,8 +1672,8 @@ function LoginScreen() {
   const disabled = busy || !email || (mode === "password" && !password);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "#F4F5F8" }}>
-      <div style={{ width: 380, maxWidth: "94vw", padding: "30px 32px", background: T.card, border: `1px solid ${T.line}`, borderRadius: 18, boxShadow: "0 32px 80px rgba(15,23,42,0.24), 0 8px 24px rgba(15,23,42,0.14)" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "#0B0F1A" }}>
+      <div style={{ width: 380, maxWidth: "94vw", padding: "30px 32px", background: T.card, border: `1px solid ${T.line}`, borderRadius: 18, boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 8px 24px rgba(0,0,0,0.4)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
           <span style={{ width: 20, height: 20, borderRadius: 6, background: `linear-gradient(135deg, ${T.amberDeep} 0%, #A87C2E 100%)`, boxShadow: "0 2px 6px rgba(184,145,58,0.4)" }} />
           <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne, color: T.ink }}>Zero To Secure</span>
@@ -1696,7 +1688,7 @@ function LoginScreen() {
         {err && <div style={{ fontSize: 11, color: T.red, marginBottom: 10 }}>{err}</div>}
         {sent && <div style={{ fontSize: 11, color: T.green, marginBottom: 10 }}>Login link sent — check your email.</div>}
         <button onClick={mode === "password" ? signIn : sendMagic} disabled={disabled}
-          style={{ width: "100%", padding: 12, fontSize: 12, fontWeight: 800, fontFamily: syne, borderRadius: 10, cursor: disabled ? "default" : "pointer", border: "none", background: disabled ? "rgba(15,23,42,0.06)" : `linear-gradient(135deg, ${T.amberDeep} 0%, #A87C2E 100%)`, color: disabled ? T.faint : "#1A1206" }}>
+          style={{ width: "100%", padding: 12, fontSize: 12, fontWeight: 800, fontFamily: syne, borderRadius: 10, cursor: disabled ? "default" : "pointer", border: "none", background: disabled ? "rgba(255,255,255,0.06)" : T.greenGrad, color: disabled ? T.faint : T.accentInk }}>
           {busy ? (mode === "password" ? "Signing in…" : "Sending…") : (mode === "password" ? "Sign in" : "Email me a login link")}
         </button>
         <div onClick={() => { setMode(mode === "password" ? "magic" : "password"); setErr(null); setSent(false); }}
@@ -1823,8 +1815,8 @@ export default function App({ embedded = false }) {
   })();
 
   if (!embedded && !authChecked) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F5F8" }}>
-      <div style={{ width: "32px", height: "32px", border: "2px solid rgba(0,0,0,0.08)", borderTopColor: T.green, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0B0F1A" }}>
+      <div style={{ width: "32px", height: "32px", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: T.green, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -1837,21 +1829,21 @@ export default function App({ embedded = false }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />
       {/* each tool owns its own ⌘K palette; the shell does not capture ⌘K */}
       {!(embedded && isMobile) && (
-      <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: embedded ? "52px" : 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
+      <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: embedded ? "52px" : 0, background: "rgba(11,15,26,0.78)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 4px 16px rgba(0,0,0,0.35)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           {!embedded && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "18px", height: "18px", borderRadius: "5px", background: "linear-gradient(135deg, #12B886 0%, #0A7A54 100%)", boxShadow: "0 1px 3px rgba(10,122,84,0.4), inset 0 1px 0 rgba(255,255,255,0.25)", display: "inline-block" }} />
-            <span style={{ fontSize: "13px", fontWeight: 800, color: "#06281C", letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne }}>Zero To Secure</span>
+            <span style={{ fontSize: "13px", fontWeight: 800, color: T.inkDeep, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: syne }}>Zero To Secure</span>
           </span>
           )}
           {!isMobile && (
-            <div style={{ display: "flex", gap: "2px", background: "rgba(15,23,42,0.04)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid rgba(15,23,42,0.04)`, position: "relative" }}>
+            <div style={{ display: "flex", gap: "2px", background: "rgba(255,255,255,0.045)", borderRadius: "10px", padding: "3px", marginLeft: "12px", border: `1px solid ${T.lineSoft}`, position: "relative" }}>
               {tabIndicator.ready && (
-                <div style={{ position: "absolute", top: "3px", bottom: "3px", left: `${tabIndicator.left}px`, width: `${tabIndicator.width}px`, background: "#FFFFFF", borderRadius: "7px", boxShadow: "0 1px 2px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.06)", transition: `left ${M.durBase} ${M.easeSpring}, width ${M.durBase} ${M.easeSpring}`, zIndex: 0 }} />
+                <div style={{ position: "absolute", top: "3px", bottom: "3px", left: `${tabIndicator.left}px`, width: `${tabIndicator.width}px`, background: T.navy, borderRadius: "7px", boxShadow: T.shadowTab, transition: `left ${M.durBase} ${M.easeSpring}, width ${M.durBase} ${M.easeSpring}`, zIndex: 0 }} />
               )}
               {TABS.map(t => (
-                <button key={t} ref={el => { tabRefs.current[t] = el; }} onClick={() => setView(t)} style={{ position: "relative", zIndex: 1, padding: "5px 15px", background: "transparent", border: "none", borderRadius: "7px", color: view === t ? "#0B1220" : "#8A97A8", fontSize: "11px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: syne, transition: `color ${M.durBase} ${M.easeStd}` }}>{t}</button>
+                <button key={t} ref={el => { tabRefs.current[t] = el; }} onClick={() => setView(t)} style={{ position: "relative", zIndex: 1, padding: "5px 15px", background: "transparent", border: "none", borderRadius: "7px", color: view === t ? T.inkDeep : T.faint, fontSize: "11px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: syne, transition: `color ${M.durBase} ${M.easeStd}` }}>{t}</button>
               ))}
             </div>
           )}

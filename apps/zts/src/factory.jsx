@@ -1,7 +1,7 @@
 // ─── Factory integration — the web side of shorts-factory ────────────────────
 // shorts-factory (factory/ in this repo) is the local Python pipeline that
 // turns raw footage into a finished 9:16 Short. This module is everything the
-// Command Center needs to talk to it: a client for factory/bridge.py, a
+// The Pentagon needs to talk to it: a client for factory/bridge.py, a
 // production rail for the Studio view, and the Send-to-Factory handoff.
 //
 // The bridge is local-only (127.0.0.1:8765). When it's up, Studio shows live
@@ -11,18 +11,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import { EmptyState, M, useToast } from "./ui.jsx";
+import { T, syne, mono } from "./theme.js";
 
 const BRIDGE = "http://127.0.0.1:8765";
 
-// Palette mirror (App.jsx owns the canonical inline T).
-const F = {
-  ink: "#0B1220", sub: "#64748B", faint: "#8A97A8",
-  green: "#0E9F6E", greenDeep: "#0A7A54", amber: "#F59E0B", amberDeep: "#B68A2E",
-  red: "#DC2626", purple: "#7C3AED",
-  card: "#FFFFFF", subtle: "#F8FAFC", line: "rgba(15,23,42,0.06)",
-  navyGrad: "linear-gradient(135deg, #16233B 0%, #0B1120 100%)",
-  syne: "'Syne', system-ui", mono: "'DM Mono', monospace",
-};
+// Palette — the one ZTS source (midnight + emerald), plus the two font consts
+// this module references as F.syne / F.mono.
+const F = { ...T, syne, mono };
 
 async function bridgeFetch(path, opts = {}, timeoutMs = 2500) {
   const ctrl = new AbortController();
@@ -174,7 +169,7 @@ function ReviewModal({ project, markdown, onClose, onApprove, approving }) {
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mdToHtml(markdown)) }} />
         <div style={{ padding: "13px 22px", borderTop: `1px solid ${F.line}`, display: "flex", justifyContent: "flex-end", gap: "8px", flexShrink: 0 }}>
           {!approved && project.draft_version > 0 && (
-            <button onClick={onApprove} disabled={approving} style={{ padding: "9px 18px", background: approving ? "rgba(15,23,42,0.06)" : F.navyGrad, border: "none", borderRadius: "9px", color: approving ? F.faint : "#FFF", fontSize: "12px", fontWeight: 700, cursor: approving ? "default" : "pointer", fontFamily: F.syne }}>
+            <button onClick={onApprove} disabled={approving} style={{ padding: "9px 18px", background: approving ? "rgba(255,255,255,0.06)" : F.greenGrad, border: "none", borderRadius: "9px", color: approving ? F.faint : F.accentInk, fontSize: "12px", fontWeight: 700, cursor: approving ? "default" : "pointer", fontFamily: F.syne }}>
               {approving ? "Approving…" : `✓ Approve draft v${project.draft_version}`}
             </button>
           )}
@@ -241,7 +236,7 @@ export function FactoryPanel({ isMobile }) {
       </div>
 
       {status === "offline" && (
-        <div style={{ background: F.card, border: `1px dashed rgba(15,23,42,0.12)`, borderRadius: "14px", padding: "16px 18px", display: "flex", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ background: F.card, border: `1px dashed rgba(255,255,255,0.12)`, borderRadius: "14px", padding: "16px 18px", display: "flex", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: "240px" }}>
             <div style={{ fontSize: "12.5px", fontWeight: 700, color: F.ink, fontFamily: F.syne, marginBottom: "4px" }}>Footage-to-Short pipeline, on your machine</div>
             <div style={{ fontSize: "11.5px", color: F.sub, lineHeight: 1.6 }}>
