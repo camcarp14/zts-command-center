@@ -163,7 +163,7 @@ function ReviewModal({ project, markdown, onClose, onApprove, approving }) {
             <div style={{ fontSize: "14px", fontWeight: 700, color: F.ink, fontFamily: F.syne }}>{project.title}</div>
             <div style={{ fontSize: "11px", color: F.faint, fontFamily: F.mono, marginTop: "2px" }}>draft v{project.draft_version}{approved ? " · approved" : ""}{project.has_final ? " · exported" : ""}</div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: F.faint, fontSize: "20px", cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
         <div className="factory-md" style={{ padding: "18px 24px", overflowY: "auto", fontSize: "13px", color: F.ink, lineHeight: 1.65 }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mdToHtml(markdown)) }} />
@@ -227,7 +227,7 @@ export function FactoryPanel({ isMobile }) {
   return (
     <div style={{ marginTop: "26px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "12px" }}>
-        <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: status === "online" ? F.green : status === "checking" ? F.amber : "#CBD5E1", animation: status === "online" ? "pulse 2.5s infinite" : "none" }} />
+        <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: status === "online" ? F.green : status === "checking" ? F.amber : F.faint, animation: status === "online" ? "pulse 2.5s infinite" : "none" }} />
         <span style={{ fontSize: "11px", fontWeight: 700, color: F.sub, textTransform: "uppercase", letterSpacing: "0.13em", fontFamily: F.syne }}>Factory — production</span>
         <span style={{ fontSize: "10px", color: F.faint, fontFamily: F.mono }}>
           {status === "online" ? `bridge connected · ${projects.length} project${projects.length !== 1 ? "s" : ""}` : status === "checking" ? "looking for the bridge…" : "bridge offline"}
@@ -279,7 +279,7 @@ export function FactoryPanel({ isMobile }) {
       )}
 
       {review && <ReviewModal project={review.project} markdown={review.markdown} onClose={() => setReview(null)} onApprove={approve} approving={approving} />}
-      <style>{`.factory-md h2, .factory-md h3, .factory-md h4, .factory-md h5 { font-family: 'Syne', system-ui; margin: 16px 0 6px; } .factory-md code { font-family: 'DM Mono', monospace; background: #F1F4FA; padding: 1px 5px; border-radius: 4px; font-size: 12px; } .factory-md ul { margin: 4px 0 10px; padding-left: 20px; } .factory-md p { margin: 4px 0; }`}</style>
+      <style>{`.factory-md h2, .factory-md h3, .factory-md h4, .factory-md h5 { font-family: 'Syne', system-ui; margin: 16px 0 6px; } .factory-md code { font-family: 'DM Mono', monospace; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-size: 12px; } .factory-md ul { margin: 4px 0 10px; padding-left: 20px; } .factory-md p { margin: 4px 0; }`}</style>
     </div>
   );
 }

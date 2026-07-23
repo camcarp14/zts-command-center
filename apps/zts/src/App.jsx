@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Fragment } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import DOMPurify from "dompurify";
 import { AnimatedNumber, EmptyState, SkeletonLine, SkeletonRows, SkeletonBoard, CommandPalette, useToast, M } from "./ui.jsx";
@@ -19,10 +19,6 @@ import { DnaWorker } from "./dna/dnaWorker.js";
 // anywhere in this file — supabaseClient.js now owns that (same platform
 // pattern as Board Room and Clarify Outreach).
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
-// Also declared-but-unused before this pass, and still unused: a real YouTube
-// Data API lookup (real subscriber counts instead of manual entry in Add
-// Creator) is a natural next step, not tackled in this pass.
-const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY || "";
 
 const MODEL_PRICING = {
   "claude-haiku-4-5-20251001": { in: 1, out: 5 },
@@ -663,7 +659,7 @@ function ComposeModal({ onClose, onCreate, isMobile }) {
         <Label style={{ marginBottom: "8px" }}>Short type</Label>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: "8px", marginBottom: "18px" }}>
           {Object.entries(SHORT_TYPES).map(([k, t]) => (
-            <button key={k} onClick={() => setType(k)} style={{ textAlign: "left", padding: "12px 13px", background: type === k ? "rgba(14,159,110,0.07)" : "#F8FAFC", border: `1px solid ${type === k ? "rgba(14,159,110,0.35)" : T.line}`, borderRadius: "11px", cursor: "pointer" }}>
+            <button key={k} onClick={() => setType(k)} style={{ textAlign: "left", padding: "12px 13px", background: type === k ? "rgba(14,159,110,0.07)" : "transparent", border: `1px solid ${type === k ? "rgba(14,159,110,0.35)" : T.line}`, borderRadius: "11px", cursor: "pointer" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: type === k ? T.greenDeep : T.ink, fontFamily: syne, marginBottom: "3px" }}>{t.label}</div>
               <div style={{ fontSize: "10px", color: T.faint, lineHeight: 1.4 }}>{t.desc}</div>
             </button>
@@ -737,7 +733,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
             <div style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: T.amberDeep, background: "rgba(245,158,11,0.1)", padding: "2px 7px", borderRadius: "5px", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: syne, marginBottom: "6px" }}>{t.label} · {short.stage}</div>
             <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{short.title || short.topic || "Untitled Short"}</div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.faint, fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
         </div>
 
         <div style={{ display: "flex", gap: "4px", padding: `12px ${hPad} 0`, flexShrink: 0 }}>
@@ -783,7 +779,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
             <div>
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
                 {PUBLISH_CHECKLIST.map(item => (
-                  <button key={item} onClick={() => toggleCheck(item)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 13px", background: checklist[item] ? "rgba(14,159,110,0.06)" : "#F8FAFC", border: `1px solid ${checklist[item] ? "rgba(14,159,110,0.25)" : T.line}`, borderRadius: "9px", cursor: "pointer", textAlign: "left" }}>
+                  <button key={item} onClick={() => toggleCheck(item)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 13px", background: checklist[item] ? "rgba(14,159,110,0.06)" : "transparent", border: `1px solid ${checklist[item] ? "rgba(14,159,110,0.25)" : T.line}`, borderRadius: "9px", cursor: "pointer", textAlign: "left" }}>
                     <span style={{ width: "18px", height: "18px", borderRadius: "5px", border: `1.5px solid ${checklist[item] ? T.green : "#CBD5E1"}`, background: checklist[item] ? T.green : "transparent", color: "#FFF", fontSize: "11px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{checklist[item] ? "✓" : ""}</span>
                     <span style={{ fontSize: "12px", color: checklist[item] ? T.sub : T.ink, fontWeight: 500, textDecoration: checklist[item] ? "line-through" : "none" }}>{item}</span>
                   </button>
@@ -794,7 +790,7 @@ function ShortDetail({ short, onClose, onUpdate, onDelete, isMobile }) {
         </div>
 
         <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
-          <button onClick={() => onDelete(short.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+          <button onClick={() => onDelete(short.id)} style={{ background: "none", border: "none", color: T.faint, fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {short.script && <Btn onClick={sendToFactory} disabled={sendingBrief} title="Hand this Short's script + packaging to the shorts-factory production pipeline">{sendingBrief ? "Sending…" : "⇢ Factory"}</Btn>}
             <Btn onClick={copyAll}>Copy all</Btn>
@@ -1037,7 +1033,7 @@ function CreatorDetail({ creator, onClose, onUpdate, onDelete, onMove, isMobile 
           <div style={{ fontSize: "16px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{creator.channel_name}</div>
           <div style={{ fontSize: "11px", color: T.faint, fontFamily: mono, marginTop: "2px" }}>{fmtSubs(creator.subscriber_count)} subs · weighted reach {fmtSubs(v.score)}</div>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.faint, fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
       </div>
 
       <div style={{ padding: `16px ${hPad}`, overflowY: "auto" }}>
@@ -1096,7 +1092,7 @@ function CreatorDetail({ creator, onClose, onUpdate, onDelete, onMove, isMobile 
 
       <div style={{ padding: `13px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         {!confirmDel ? (
-          <button onClick={() => setConfirmDel(true)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+          <button onClick={() => setConfirmDel(true)} style={{ background: "none", border: "none", color: T.faint, fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
         ) : (
           <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "11px", color: T.red }}>Delete {creator.channel_name}?</span>
@@ -1249,7 +1245,7 @@ function AgentsView({ isMobile }) {
           {agentMeta.map(([k, name, sub]) => <Toggle key={k} on={ctrl.agents[k] !== false} onClick={() => { eng.setAgent(k, !(ctrl.agents[k] !== false)); setCtrl(eng.get()); }} label={name} sub={sub} />)}
         </div>
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}><Label>Knowledge & Ideas ({feed.length})</Label>{feed.length > 0 && <button onClick={() => { kb.clear(); setFeed([]); }} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Clear</button>}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}><Label>Knowledge & Ideas ({feed.length})</Label>{feed.length > 0 && <button onClick={() => { kb.clear(); setFeed([]); }} style={{ background: "none", border: "none", color: T.faint, fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Clear</button>}</div>
           {feed.length === 0 ? (
             <EmptyState icon="radar" title="Nothing observed yet" sub="Press play — the roster starts watching your creators and Shorts at zero token cost." />
           ) : (
@@ -1459,7 +1455,7 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
             <div style={{ fontSize: "15px", fontWeight: 700, color: T.ink, fontFamily: syne, lineHeight: 1.3 }}>{article.title_tag || article.keyword || "Untitled"}</div>
             {article.target_keyword && <div style={{ fontSize: "11px", color: T.faint, marginTop: "3px", fontFamily: mono }}>{article.target_keyword} · {article.search_intent || "—"} · {article.word_count || "?"} words</div>}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.faint, fontSize: "20px", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
         </div>
         <div style={{ padding: `18px ${hPad}`, overflowY: "auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
@@ -1477,7 +1473,7 @@ function ArticleDetail({ article, onClose, onUpdate, onDelete, isMobile }) {
           {pubResult && <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "9px", fontSize: "12px", background: pubResult.error ? "rgba(220,38,38,0.07)" : "rgba(14,159,110,0.07)", color: pubResult.error ? T.red : T.greenDeep, border: `1px solid ${pubResult.error ? "rgba(220,38,38,0.2)" : "rgba(14,159,110,0.25)"}` }}>{pubResult.error ? `Publish failed: ${pubResult.error}` : pubResult.method === "clipboard" ? "Local mode — article HTML copied to clipboard. Paste into Shopify admin → Blog posts → Add." : "Published to Shopify ✓"}</div>}
         </div>
         <div style={{ padding: `14px ${hPad}`, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", flexShrink: 0 }}>
-          <button onClick={() => onDelete(article.id)} style={{ background: "none", border: "none", color: "#CBD5E1", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+          <button onClick={() => onDelete(article.id)} style={{ background: "none", border: "none", color: T.faint, fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {stage === "idea" && <Btn primary onClick={regenerate} disabled={regenerating}>{regenerating ? "Drafting…" : "✦ Generate draft"}</Btn>}
             {stage === "review" && <><Btn onClick={reject}>✕ Reject</Btn><Btn primary onClick={approve}>✓ Approve</Btn></>}
@@ -1558,7 +1554,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             {roster.map((a, i) => { const active = a.enabled && engCtrl.running; return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 11px", background: T.subtle, borderRadius: "9px", border: `1px solid ${T.line}` }}>
-                <span style={{ width: "7px", height: "7px", borderRadius: "50%", flexShrink: 0, background: active ? T.green : a.enabled ? "#CBD5E1" : "#E2E8F0" }} />
+                <span style={{ width: "7px", height: "7px", borderRadius: "50%", flexShrink: 0, background: active ? T.green : a.enabled ? T.faint : T.ghost }} />
                 <div style={{ minWidth: 0 }}><div style={{ fontSize: "11px", fontWeight: 700, color: T.ink, fontFamily: syne, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div><div style={{ fontSize: "9px", color: T.faint }}>{a.notes > 0 ? `${a.notes} note${a.notes!==1?"s":""}` : a.enabled ? "ready" : "off"}</div></div>
               </div>
             ); })}
@@ -1642,7 +1638,7 @@ function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [sent, setSent] = useState(false);
-  const inputStyle = { width: "100%", padding: "11px 13px", fontSize: 13, border: `1px solid ${T.line}`, borderRadius: 9, background: T.bg === "transparent" ? "#F8FAFC" : T.bg, color: T.ink, outline: "none", boxSizing: "border-box" };
+  const inputStyle = { width: "100%", padding: "11px 13px", fontSize: 13, border: `1px solid ${T.line}`, borderRadius: 9, background: T.subtle, color: T.ink, outline: "none", boxSizing: "border-box" };
 
   if (!supabase) {
     return (

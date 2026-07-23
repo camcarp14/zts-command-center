@@ -10,6 +10,11 @@ if (missing.length) {
   throw new Error(`RUNWAY_ENV_MISSING: ${missing.join(', ')}`);
 }
 
-// Runway's tables live in the "runway" schema of the shared board-room
-// Supabase project (consolidated 2026-07); auth stays on the default schema.
-export const supabase = createClient(url, anon, { db: { schema: 'runway' } });
+// Runway's tables live in the "runway" schema of the shared Pentagon Supabase
+// project (consolidated 2026-07); auth stays on the default schema.
+//
+// autoRefreshToken:false is deliberate: under the shell, three tool clients
+// share one session (same storage key). If each auto-refreshed they'd race on the
+// single refresh token ("token already used" → random sign-outs). The shell owns
+// refresh; persistSession keeps this client reading the shared, synced session.
+export const supabase = createClient(url, anon, { db: { schema: 'runway' }, auth: { persistSession: true, autoRefreshToken: false } });

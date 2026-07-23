@@ -5,7 +5,6 @@ import { AGENT_META } from "../system/AgentsView.jsx";
 import { eng, goalProgress, kb } from "../../lib/engine.js";
 import { obs, sm, store } from "../../lib/store.js";
 import { fetchPortfolioCounts } from "../../lib/supabase.js";
-import { seqDb } from "../../lib/sequenceDb.js";
 
 // ─── Month calendar — booked meetings at a glance (Mission footer) ────────────
 // Meetings live on the outreach rows (meeting_at — the DB, survives any
@@ -113,14 +112,6 @@ export function MonthCalendar({ onNavigate, hideOpenLink, cards = [] }) {
 // and what-needs-you-now. Pulls live from Supabase + sessionMemory + obs log.
 export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
   const [counts, setCounts] = useState(null);
-  const [queueCount, setQueueCount] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    const load = () => seqDb.getQueueCount().then((n) => { if (alive) setQueueCount(n); }).catch(() => {});
-    load();
-    const iv = setInterval(load, 60000);
-    return () => { alive = false; clearInterval(iv); };
-  }, []);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
@@ -147,13 +138,11 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
     sent: cards.filter(c => c.status === "sent").length,
     replied: cards.filter(c => c.status === "replied").length,
   };
-  const replyRate = pipeline.sent > 0 ? Math.round((pipeline.replied / pipeline.sent) * 100) : 0;
   const meetings = cards.filter(c => c.status === "meeting").length;
 
   // ── Round 4: daily momentum — compare today vs a stored daily snapshot ──
   const todayKey = new Date().toISOString().slice(0, 10);
   const snapshot = { sent: pipeline.sent, replied: pipeline.replied, meetings, date: todayKey };
-  const prior = sm.get("mission_snapshot");
   // Roll the snapshot forward once per day so "yesterday" stays stable.
   useEffect(() => {
     const last = sm.get("mission_snapshot");
@@ -170,25 +159,12 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
     return d === 0 ? null : d;
   };
 
-  // ── Saved analyses from sessionMemory ──
-  const analyses = sm.keys("analysis_").map(k => sm.get(`analysis_${k}`)).filter(Boolean);
-  const needsAttention = analyses.filter(a => a.signal === "needs_attention");
-
   // ── Observability snapshot ──
   const obsLogs = obs.getAll();
   const aiCost = obsLogs.reduce((s, l) => s + (l.costEstimate || 0), 0);
-  const aiCalls = obsLogs.length;
   const budget = sm.get("ai_budget") || 50;
   const budgetPct = Math.min(100, Math.round((aiCost / budget) * 100));
 
-  // ── Agent roster — the ten designed agents, status derived from real activity ──
-  const fnActivity = {};
-  obsLogs.forEach(l => {
-    if (!fnActivity[l.fn]) fnActivity[l.fn] = { calls: 0, lastTs: null };
-    fnActivity[l.fn].calls++;
-    const t = new Date(l.ts).getTime();
-    if (!fnActivity[l.fn].lastTs || t > fnActivity[l.fn].lastTs) fnActivity[l.fn].lastTs = t;
-  });
   // Live roster — pulls from the Agent Engine so Mission shows the real agents.
   const engCtrl = eng.get();
   const kbAll = kb.all();
@@ -210,7 +186,6 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
   };
 
   // ── Recent activity feed (last obs events) ──
-  const FN_LABELS = { analyst_call: "Ran account analysis", portfolio_synthesis: "Synthesized portfolio", pre_call_brief: "Generated call brief", generate_draft: "Drafted outreach email", global_agent: "Answered via assistant" };
   const recentActivity = [...obsLogs].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 6);
 
   const Card = ({ children, span, pad }) => (

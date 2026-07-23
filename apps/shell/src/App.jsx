@@ -3,12 +3,13 @@
 //
 // One site, one login, one toggle. The shell owns exactly four things:
 //   • auth (a single login gates all three tools)
-//   • the top-of-screen app toggle (ZTS · Clarify · Runway)
-//   • per-tool theming (it stamps @cc/design's CSS vars + data-app/-theme on a
-//     wrapper, so switching tools re-skins the whole page — including light↔dark)
-//   • the cross-app ⌘K palette
-// Each tool keeps its own internal nav directly beneath (two clear layers), and
-// is lazy-loaded so opening one never downloads the others.
+//   • the top-of-screen app toggle (ZTS · Clarify · Runway), plus ⌥1/2/3
+//   • per-tool theming (it stamps @cc/design's CSS vars on a wrapper, so
+//     switching tools re-accents the whole page over the shared dark canvas)
+//   • the cross-tool System hub (usage · minds · agents)
+// Each tool keeps its own internal nav — and its own ⌘K palette — directly
+// beneath (two clear layers), and is lazy-loaded so opening one never
+// downloads the others.
 // ═══════════════════════════════════════════════════════════════════════════
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { appMeta, cssVars, APPS } from "@cc/design";
@@ -173,7 +174,10 @@ export default function Shell() {
   useEffect(() => {
     const onKey = (e) => {
       if (!e.altKey || e.metaKey || e.ctrlKey) return;
-      const i = ["1", "2", "3"].indexOf(e.key);
+      // Match e.code, not e.key: on macOS, Option composes the digit into a glyph
+      // (⌥1 → "¡"), so e.key is never "1"/"2"/"3" and the shortcut would silently
+      // do nothing. e.code stays "Digit1".."Digit3" regardless of the modifier.
+      const i = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
       if (i === -1 || !APPS[i]) return;
       e.preventDefault();
       pick(APPS[i]);

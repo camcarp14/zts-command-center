@@ -3,6 +3,7 @@
 // costs a network round trip.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
+import { apiPost } from './api.js';
 import { scoreJob } from './score.js';
 import { computeMetrics } from './metrics.js';
 import { discoveryToJob } from './discovery.js';
@@ -223,7 +224,6 @@ export function AppProvider({ children }) {
 
   // one scan batch (≤12 least-recently-scanned boards); returns the summary
   const runScan = useCallback(async () => {
-    const { apiPost } = await import('./api.js');
     setScanning(true);
     try {
       const summary = await apiPost('/api/scan-boards', {});
@@ -237,7 +237,6 @@ export function AppProvider({ children }) {
   // loop scan batches until every board is covered (safety-capped), so one
   // "Scan now" click sweeps a whole pack. onProgress(done,total) for the UI.
   const runFullScan = useCallback(async (onProgress) => {
-    const { apiPost } = await import('./api.js');
     setScanning(true);
     const totals = { boards_scanned: 0, new_seen: 0, matched: 0, queued: 0, board_errors: [], keywords_missing: false };
     try {
@@ -262,7 +261,6 @@ export function AppProvider({ children }) {
   // Sweep active jobs' postings for liveness (batched server-side; loop until
   // everything due has a verdict). Returns totals for the toast.
   const checkPostings = useCallback(async (onProgress) => {
-    const { apiPost } = await import('./api.js');
     setCheckingPostings(true);
     const totals = { checked: 0, live: 0, gone: 0, uncertain: 0 };
     try {

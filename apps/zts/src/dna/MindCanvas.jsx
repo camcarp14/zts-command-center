@@ -837,8 +837,8 @@ function MindCanvasImpl({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [g]);
 
-  // White-glass overlay surface — matches App.jsx's Card (rgba(255,255,255,0.9)
-  // + blur + hairline + soft shadow). NOT the dark reference glass.
+  // Dark-glass overlay surface — the app's Card material (dark fill + blur +
+  // hairline + soft shadow), from the T.glass token above.
   const glass = {
     background: T.glass,
     backdropFilter: "blur(18px)",
