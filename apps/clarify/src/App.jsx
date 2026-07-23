@@ -182,7 +182,6 @@ export default function App({ embedded = false }) {
   // typing in a field — same guard as the ?/Escape shortcut below — so it never
   // hijacks a keystroke mid-draft in one of the many compose textareas.
   useEffect(() => {
-    if (embedded) return; // the shell owns ⌘K when mounted inside it
     const onKey = (e) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "k") return;
       const tag = (e.target.tagName || "").toLowerCase();

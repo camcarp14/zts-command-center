@@ -1832,7 +1832,8 @@ export default function App({ embedded = false }) {
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: isMobile ? "calc(60px + env(safe-area-inset-bottom))" : 0 }}>
       <AgentEngine creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
       <DnaWorker creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />
-      {!embedded && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />
+      {/* each tool owns its own ⌘K palette; the shell does not capture ⌘K */}
       {!(embedded && isMobile) && (
       <div style={{ borderBottom: `1px solid ${T.line}`, padding: isMobile ? "0 16px" : "0 24px", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: embedded ? "52px" : 0, background: "rgba(248,249,251,0.82)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", boxShadow: "0 1px 0 rgba(15,23,42,0.02), 0 4px 16px rgba(15,23,42,0.03)", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>

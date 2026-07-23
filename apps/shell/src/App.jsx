@@ -10,9 +10,9 @@
 // Each tool keeps its own internal nav directly beneath (two clear layers), and
 // is lazy-loaded so opening one never downloads the others.
 // ═══════════════════════════════════════════════════════════════════════════
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { appMeta, cssVars, APPS } from "@cc/design";
-import { CommandPalette, SkeletonBoard, EmptyIcon, M } from "@cc/ui";
+import { SkeletonBoard, EmptyIcon, M } from "@cc/ui";
 import { auth, isConfigured } from "@cc/supabase";
 
 // Lazily-mounted tools. Wired in per Phase-C increment; a tool without an entry
@@ -98,23 +98,36 @@ function LoginScreen() {
 
 // ─── the app toggle ───────────────────────────────────────────────────────────
 function AppToggle({ active, onPick, compact }) {
+  const refs = useRef({});
+  const [ind, setInd] = useState({ left: 0, width: 0, ready: false });
+  // Measure the active button so the white pill glides between tools instead of
+  // teleporting. Re-measures on tool switch and on the mobile/desktop flip.
+  useLayoutEffect(() => {
+    const el = refs.current[active];
+    if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth, ready: true });
+  }, [active, compact]);
   return (
-    <div style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 11, background: "color-mix(in srgb, var(--ink) 6%, transparent)", border: "1px solid var(--border)" }}>
+    <div style={{ position: "relative", display: "inline-flex", gap: 2, padding: 3, borderRadius: 11, background: "color-mix(in srgb, var(--ink) 6%, transparent)", border: "1px solid var(--border)" }}>
+      {ind.ready && (
+        <div style={{ position: "absolute", top: 3, bottom: 3, left: ind.left, width: ind.width, background: "var(--surface)", borderRadius: 8, boxShadow: "var(--shadow-tab)", transition: `left ${M.durBase} ${M.easeSpring}, width ${M.durBase} ${M.easeSpring}` }} />
+      )}
       {APPS.map((a) => {
         const m = appMeta(a);
         const on = a === active;
+        // On mobile the toggle is dots-only to save room, but the ACTIVE tool
+        // keeps its label so you always know where you are.
+        const showLabel = !compact || on;
         return (
-          <button key={a} onClick={() => onPick(a)} title={m.label} style={{
+          <button key={a} ref={(el) => { refs.current[a] = el; }} onClick={() => onPick(a)} title={m.label} style={{
+            position: "relative", zIndex: 1,
             display: "inline-flex", alignItems: "center", gap: 7, padding: compact ? "6px 10px" : "6px 14px",
-            border: "none", borderRadius: 8, cursor: "pointer",
-            background: on ? "var(--surface)" : "transparent",
-            boxShadow: on ? "var(--shadow-tab)" : "none",
+            border: "none", borderRadius: 8, cursor: "pointer", background: "transparent",
             color: on ? "var(--ink)" : "var(--faint)",
             fontFamily: "'Syne',system-ui", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-            transition: `color ${M.durBase} ${M.easeStd}, background ${M.durBase} ${M.easeStd}`,
+            transition: `color ${M.durBase} ${M.easeStd}`,
           }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: m.accent, boxShadow: on ? `0 0 8px ${m.accent}` : "none", flexShrink: 0 }} />
-            {!compact && m.label}
+            {showLabel && m.label}
           </button>
         );
       })}
@@ -145,34 +158,25 @@ export default function Shell() {
   const session = useSession();
   const isMobile = useIsMobile();
   const [active, setActive] = useState(() => (typeof localStorage !== "undefined" && localStorage.getItem("cc_active_app")) || "zts");
-  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const pick = useCallback((a) => {
     setActive(a);
     try { localStorage.setItem("cc_active_app", a); } catch {}
   }, []);
 
-  // ⌘K opens the cross-app palette (skips while typing in a field).
+  // ⌥1 / ⌥2 / ⌥3 jump between tools. Deliberately NOT ⌘K — each tool owns its
+  // own (richer) ⌘K palette, and Option+number never collides with the browser.
   useEffect(() => {
     const onKey = (e) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "k") return;
-      const tag = (e.target.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (!e.altKey || e.metaKey || e.ctrlKey) return;
+      const i = ["1", "2", "3"].indexOf(e.key);
+      if (i === -1 || !APPS[i]) return;
       e.preventDefault();
-      setPaletteOpen((o) => !o);
+      pick(APPS[i]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  const paletteActions = useMemo(() => {
-    const acts = APPS.filter((a) => a !== active).map((a) => ({
-      id: `switch_${a}`, group: "Switch to", icon: "→", label: appMeta(a).brand,
-      sub: `${appMeta(a).mode} · ${appMeta(a).label}`, run: () => pick(a),
-    }));
-    acts.push({ id: "signout", group: "Session", icon: "⇥", label: "Sign out", run: () => auth.signOut() });
-    return acts;
-  }, [active, pick]);
+  }, [pick]);
 
   if (session === undefined) return <Boot />;
   if (!session) return <LoginScreen />;
@@ -198,14 +202,11 @@ export default function Shell() {
           <AppToggle active={active} onPick={pick} compact={isMobile} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={() => setPaletteOpen(true)} title="Command palette (⌘K)" style={{ background: "none", border: "1px solid var(--border)", borderRadius: 7, color: "var(--faint)", fontSize: 10, padding: "5px 9px", cursor: "pointer", fontWeight: 600, fontFamily: "var(--font-mono)" }}>⌘K</button>
           {!isMobile && (
             <button onClick={() => auth.signOut()} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 7, color: "var(--muted)", fontSize: 10, padding: "5px 10px", cursor: "pointer", fontWeight: 600, fontFamily: "'Syne',system-ui" }}>Sign out</button>
           )}
         </div>
       </div>
-
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={paletteActions} />
 
       {/* The active tool, lazy-loaded */}
       <Suspense fallback={<div style={{ padding: 24 }}><SkeletonBoard /></div>}>
