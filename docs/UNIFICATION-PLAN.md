@@ -131,3 +131,37 @@ shared `ANTHROPIC_API_KEY`, plus Clarify's email/Shopify server vars.
   consolidation; repo rename.
 - **P5 — Deepen (deferred).** Cross-tool links (a creator ↔ an outreach thread,
   etc.) and optional Supabase project consolidation.
+
+## Decisions & status log
+
+**2026-07-23**
+
+- **Repo:** fresh unified monorepo, built in place on this branch (rename to
+  `command-center` at the end). ✅ scaffolded (Phase B).
+- **Scope:** shell + shared design first; deep data-merge deferred.
+- **Auth / backend:** consolidate onto ONE Supabase project (the clarify
+  project) rather than signing into two. Supersedes the "sign into both
+  projects" note above — with one project there is literally one login.
+- **Design:** per-tool identity is **mode (light/dark) + accent**, not accent
+  alone — Runway ships a dark canvas. Encoded in `@cc/design`. ✅
+- **Runway data:** **start fresh** on the clarify project (no data copy). The
+  operator's résumé + targeting can be carried over on request (2 tiny rows)
+  any time before cutover.
+- **Board-room cleanup:** dropping board-room's `runway` schema is the **final**
+  step, run ONLY after Runway is repointed to clarify and confirmed working —
+  never before, or the still-live Runway app breaks. It permanently deletes the
+  board-room copy of the résumé/targeting/jobs.
+- **Nav:** two clear layers — shell top bar = app toggle; each tool keeps its
+  own internal tabs/rail beneath.
+
+**Done so far**
+
+- Phase A (DB): `runway` schema ported into the clarify project — 10 tables, 4
+  functions, 9 RLS policies, 7 write-triggers, fresh/empty, verified. Remaining
+  Phase A = cutover (expose `runway` in the clarify API settings + repoint the
+  Runway client/env + service-role key), folded into Phase C/D.
+- Phase B (packages): `@cc/design`, `@cc/ui`, `@cc/supabase` built, workspace
+  linked, all transform-verified. Committed + pushed.
+
+**Next:** Phase C — move `apps/{zts,clarify,runway}` in, build `apps/shell`
+(single login, top toggle, lazy mounts, per-tool theming), mount all three.
