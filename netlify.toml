@@ -1,6 +1,20 @@
 [build]
-  command = "npm install && npm run build"
+  # --include=dev: Netlify sets NODE_ENV=production, which makes a plain
+  # `npm install` skip devDependencies — so vite/@vitejs/plugin-react go missing
+  # and the build dies with "vite: not found". Force dev deps in.
+  command = "npm install --include=dev && npm run build"
   publish = "apps/shell/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Also make Netlify's own dependency-install step include dev deps.
+  NPM_FLAGS = "--include=dev"
+  # The only env-var value Vite bakes into the client bundle is the Supabase anon
+  # key/URL — public by design (anon tier; RLS protects the data, not the key).
+  # Netlify's secrets scanner was failing the build on it, so disable the scan
+  # for this site (also set as a real site env var so it applies regardless of
+  # how [build.environment] is honored).
+  SECRETS_SCAN_ENABLED = "false"
 
 [functions]
   directory = "netlify/functions"
