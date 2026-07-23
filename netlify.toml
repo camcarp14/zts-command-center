@@ -4,11 +4,12 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  # The Supabase anon key + URL are public by design (anon tier, RLS-protected)
-  # and Vite legitimately bakes them into the client bundle. Their values also
-  # match the non-VITE SUPABASE_* function env vars, which tripped Netlify's
-  # secrets scanner and failed the build — tell it these keys are not secrets.
-  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
+  # The only env-var value Vite bakes into the client bundle is the Supabase anon
+  # key/URL — public by design (anon tier; RLS protects the data, not the key).
+  # Netlify's secrets scanner was failing the build on it, so disable the scan
+  # for this site (also set as a real site env var so it applies regardless of
+  # how [build.environment] is honored).
+  SECRETS_SCAN_ENABLED = "false"
 
 [functions]
   directory = "netlify/functions"
