@@ -1500,8 +1500,6 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
   const sPipe = { wip: shorts.filter(s => ["script","assets"].includes(s.stage)).length, ready: shorts.filter(s => s.stage === "ready").length, posted: shorts.filter(s => s.stage === "posted").length };
   const totalReach = creators.filter(c => c.stage !== "rejected").reduce((s, c) => s + creatorValue(c).score, 0);
   const roster = AGENT_META.map(m => { const notes = kbAll.filter(e => e.agent === m.key); const enabled = m.key === "synthesizer" ? !engCtrl.observeOnly : engCtrl.agents[m.key] !== false; return { key: m.key, name: m.name, enabled, notes: notes.length }; });
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const recent = obs.getAll().slice(0, 6);
 
   const Stat = ({ label, value, sub, accent, format, onClick }) => (
@@ -1525,8 +1523,8 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
     <div style={{ minHeight: "calc(100vh - 52px)", padding: viewPad(isMobile) }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "18px", flexWrap: "wrap", gap: "8px" }}>
         <div>
-          <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 700, color: T.ink, fontFamily: syne }}>{greeting}, Cameron</div>
-          <div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Zero To Secure</div>
+          <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 700, color: T.ink, fontFamily: syne }}>Mission</div>
+          <div style={{ fontSize: "12px", color: T.faint, marginTop: "2px" }}>Zero To Secure</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: T.green, fontWeight: 600 }}><span style={{ width: "7px", height: "7px", borderRadius: "50%", background: T.green }} />Live</div>
       </div>

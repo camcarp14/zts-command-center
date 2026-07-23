@@ -240,9 +240,6 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
   );
   const jump = (tab) => tab && onNavigate && onNavigate(tab);
 
-  const now = new Date();
-  const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening";
-
   return (
     <div style={{ minHeight: "calc(100vh - 48px)", background: "transparent", padding: "24px 28px" }}>
       {inboundNew > 0 && (
@@ -254,8 +251,7 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
       {/* Header */}
       <div style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "10px" }}>
         <div>
-          <div style={{ fontSize: "22px", fontWeight: 700, color: T.ink, fontFamily: T.fontDisplay, letterSpacing: "-0.02em" }}>{greeting}, Cameron</div>
-          <div style={{ fontSize: "12px", color: T.faint, marginTop: "3px" }}>{now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Mission Control</div>
+          <div style={{ fontSize: "22px", fontWeight: 700, color: T.ink, fontFamily: T.fontDisplay, letterSpacing: "-0.02em" }}>Mission Control</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           {(() => {
