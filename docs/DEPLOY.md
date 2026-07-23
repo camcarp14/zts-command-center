@@ -80,11 +80,12 @@ Runway, theming flips light↔dark, and each tool's data loads.
 - Once Runway is confirmed working on clarify, **then** drop the board-room
   `runway` schema (the final, only-after-verified step).
 
-### Unify the naming → "Command Center"
+### The naming → "The Pentagon"
 
-The app UI, `package.json` (`command-center`), README, and this runbook already
-say **Command Center**. Three external names still carry the legacy `zts-`
-prefix — rename them so the whole bucket reads as one Command Center:
+The whole bucket is branded **The Pentagon** — the app UI, README, and this
+runbook all say it. The npm package name (`command-center`) is internal and left
+as-is. Two external names still carry legacy prefixes; renaming them is optional
+and cosmetic:
 
 - **Netlify site** — ✅ renamed to `the-pentagon`; the site now serves at
   **the-pentagon.netlify.app**. (The plain `command-center` and `the-command-center`
@@ -92,12 +93,13 @@ prefix — rename them so the whole bucket reads as one Command Center:
   `zts-command-center.netlify.app` subdomain is freed — update bookmarks. To
   change it again: Netlify UI (Site configuration → Change site name) or MCP
   `update-project-name`.
-- **Supabase project** — rename `clarify-outreach` → `command-center` in the
-  Supabase dashboard (Project Settings → General → Project name). Cosmetic only;
-  the project ref / connection URLs are unchanged, so nothing in the app breaks.
-- **GitHub repo** — rename `zts-command-center` → `command-center` (Settings →
-  Repository name). Lossless; GitHub auto-redirects the old URL and existing
-  clones keep working until they re-point their remote.
+- **Supabase project** — optionally rename `clarify-outreach` → `the-pentagon`
+  in the Supabase dashboard (Project Settings → General → Project name). Cosmetic
+  only; the project ref / connection URLs are unchanged, so nothing in the app
+  breaks.
+- **GitHub repo** — optionally rename `zts-command-center` → `the-pentagon`
+  (Settings → Repository name). Lossless; GitHub auto-redirects the old URL and
+  existing clones keep working until they re-point their remote.
 
 ## Known follow-ups (non-blocking)
 - Lock down the claude proxy (auth'd path above) if shipping the interim open one.

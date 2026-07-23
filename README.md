@@ -1,8 +1,9 @@
-# Command Center
+# The Pentagon
 
-One site, one login, one toggle — the operations hub that houses three tools
-under a single shell. A top-of-screen toggle (a bottom bar on mobile) switches
-between them; each is lazy-loaded and re-skins the whole page to its own accent.
+One site, one login, one toggle — **The Pentagon** is the operations hub that
+houses three tools under a single shell. A top-of-screen toggle (a bottom bar on
+mobile) switches between them; each is lazy-loaded and re-skins the whole page to
+its own accent while sharing one dark design language.
 
 | Module | What it is |
 |---|---|

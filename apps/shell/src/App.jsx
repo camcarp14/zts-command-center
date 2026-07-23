@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Command Center — the shell.
+// The Pentagon — the shell.
 //
 // One site, one login, one toggle. The shell owns exactly four things:
 //   • auth (a single login gates all three tools)
@@ -91,7 +91,7 @@ function LoginScreen() {
       <form onSubmit={submit} style={{ width: "100%", maxWidth: 360, background: "#12151d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: "30px 26px", boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <BrandMark size={11} />
-          <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "#e9e7e0", fontFamily: "'Syne',system-ui" }}>Command Center</span>
+          <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "#e9e7e0", fontFamily: "'Syne',system-ui" }}>The Pentagon</span>
         </div>
         <div style={{ fontSize: 12.5, color: "#9aa1ae", marginBottom: 18, lineHeight: 1.6 }}>One sign-in for ZTS, Clarify, and Runway.</div>
         <label style={{ fontSize: 11, color: "#9aa1ae", fontWeight: 600 }}>Email</label>
@@ -158,7 +158,7 @@ function ComingSoon({ app }) {
         </div>
         <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Syne',system-ui", color: "var(--ink)", marginBottom: 8 }}>{m.brand}</div>
         <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-          Getting mounted into the Command Center. The toggle, theme, and one-login are already wired — this tool comes online in the next build increment.
+          Getting mounted into The Pentagon. The toggle, theme, and one-login are already wired — this tool comes online in the next build increment.
         </div>
       </div>
     </div>
@@ -210,7 +210,7 @@ export default function Shell() {
           {!isMobile && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <BrandMark size={9} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)", fontFamily: "'Syne',system-ui", whiteSpace: "nowrap" }}>Command Center</span>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)", fontFamily: "'Syne',system-ui", whiteSpace: "nowrap" }}>The Pentagon</span>
             </span>
           )}
           <AppToggle active={active} onPick={pick} compact={isMobile} />
