@@ -14,10 +14,28 @@ import appCss from "./styles/app.css?inline";
 import polishCss from "./styles/polish.css?inline";
 import App from "./App.jsx";
 
-// Sit Runway's full-height rail + shell below the 52px Command Center top bar.
+// Standardize Runway's nav with the other tools: a TOP bar on desktop (matching
+// ZTS/Clarify + the shell toggle), a BOTTOM bar on mobile. Runway's own
+// <=820px media query already turns its rail into a bottom bar, so we scope the
+// desktop conversion to >=821px and never touch the mobile rules (the previous
+// unconditional `.rail{top:52px}` was clobbering the mobile bottom nav).
 const EMBED_OVERRIDES = `
-.shell { min-height: calc(100vh - 52px); }
-.rail { top: 52px; height: calc(100vh - 52px); }
+@media (min-width: 821px) {
+  .shell { display: flex; flex-direction: column; min-height: calc(100vh - 52px); }
+  .rail {
+    position: sticky; top: 52px; height: auto; width: 100%;
+    flex-direction: row; align-items: center; gap: 6px;
+    border-right: none; border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
+    padding: 8px 20px; z-index: 40;
+  }
+  .rail .brand { display: none; }
+  .rail .nav-item { flex: 0 0 auto; }
+  .rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: 14px; padding: 0; font-size: 12px; }
+  .rail-foot .btn { display: none; }   /* the shell owns sign-out */
+  .main { max-width: 1240px; margin: 0 auto; width: 100%; }
+}
 `;
 
 export default function RunwayRoot() {

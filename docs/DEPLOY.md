@@ -79,8 +79,24 @@ Runway, theming flips light↔dark, and each tool's data loads.
   links/bookmarks survive.
 - Once Runway is confirmed working on clarify, **then** drop the board-room
   `runway` schema (the final, only-after-verified step).
-- Rename the GitHub repo `zts-command-center` → `command-center` (lossless;
-  GitHub auto-redirects the old URL).
+
+### Unify the naming → "Command Center"
+
+The app UI, `package.json` (`command-center`), README, and this runbook already
+say **Command Center**. Three external names still carry the legacy `zts-`
+prefix — rename them so the whole bucket reads as one Command Center:
+
+- **Netlify site** — the plain `command-center.netlify.app` subdomain is taken
+  globally, so the site is still `zts-command-center`. Rename it in the Netlify
+  UI (Site configuration → Change site name) or via MCP `update-project-name` to
+  an available unified name once chosen. Renaming changes the `.netlify.app`
+  subdomain, so update any bookmarks after.
+- **Supabase project** — rename `clarify-outreach` → `command-center` in the
+  Supabase dashboard (Project Settings → General → Project name). Cosmetic only;
+  the project ref / connection URLs are unchanged, so nothing in the app breaks.
+- **GitHub repo** — rename `zts-command-center` → `command-center` (Settings →
+  Repository name). Lossless; GitHub auto-redirects the old URL and existing
+  clones keep working until they re-point their remote.
 
 ## Known follow-ups (non-blocking)
 - Lock down the claude proxy (auth'd path above) if shipping the interim open one.
