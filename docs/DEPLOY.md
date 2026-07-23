@@ -86,11 +86,12 @@ The app UI, `package.json` (`command-center`), README, and this runbook already
 say **Command Center**. Three external names still carry the legacy `zts-`
 prefix — rename them so the whole bucket reads as one Command Center:
 
-- **Netlify site** — the plain `command-center.netlify.app` subdomain is taken
-  globally, so the site is still `zts-command-center`. Rename it in the Netlify
-  UI (Site configuration → Change site name) or via MCP `update-project-name` to
-  an available unified name once chosen. Renaming changes the `.netlify.app`
-  subdomain, so update any bookmarks after.
+- **Netlify site** — ✅ renamed to `the-pentagon`; the site now serves at
+  **the-pentagon.netlify.app**. (The plain `command-center` and `the-command-center`
+  subdomains were both already taken globally.) The old
+  `zts-command-center.netlify.app` subdomain is freed — update bookmarks. To
+  change it again: Netlify UI (Site configuration → Change site name) or MCP
+  `update-project-name`.
 - **Supabase project** — rename `clarify-outreach` → `command-center` in the
   Supabase dashboard (Project Settings → General → Project name). Cosmetic only;
   the project ref / connection URLs are unchanged, so nothing in the app breaks.
