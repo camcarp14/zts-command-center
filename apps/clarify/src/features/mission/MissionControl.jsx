@@ -209,22 +209,6 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
     return `${Math.floor(h / 24)}d ago`;
   };
 
-  // ── What needs you now — assembled priority feed ──
-  const attentionItems = [];
-  // Meeting intent is the money moment — it outranks everything.
-  const wantsMeeting = cards.filter(c => c.reply_classification === "scheduling" && !c.meeting_at && !["rejected", "snoozed", "meeting"].includes(c.status));
-  if (wantsMeeting.length > 0) attentionItems.push({ icon: "◆", color: T.green, text: `${wantsMeeting.length} prospect${wantsMeeting.length !== 1 ? "s" : ""} want${wantsMeeting.length === 1 ? "s" : ""} to meet — ${wantsMeeting.slice(0, 2).map(c => c.prospect?.business_name).filter(Boolean).join(", ") || "book them"} → book now`, tab: "calendar" });
-  if (queueCount > 0) attentionItems.push({ icon: "✓", color: T.gold, text: `${queueCount} draft${queueCount !== 1 ? "s" : ""} waiting in the approval queue`, tab: "queue" });
-  if (counts?.criticalFindings > 0) attentionItems.push({ icon: "▲", color: T.red, text: `${counts.criticalFindings} critical finding${counts.criticalFindings !== 1 ? "s" : ""} across clients`, tab: "clients" });
-  if (counts?.pendingActions > 0) attentionItems.push({ icon: "✦", color: T.blue, text: `${counts.pendingActions} action${counts.pendingActions !== 1 ? "s" : ""} awaiting your approval`, tab: "clients" });
-  if (pipeline.replied > 0) attentionItems.push({ icon: "💬", color: T.pink, text: `${pipeline.replied} repl${pipeline.replied !== 1 ? "ies" : "y"} waiting in outreach`, tab: "outreach" });
-  if (pipeline.draft > 0) attentionItems.push({ icon: "→", color: T.amber, text: `${pipeline.draft} draft${pipeline.draft !== 1 ? "s" : ""} ready to send`, tab: "outreach" });
-  // Follow-up nudge: emails sent 3+ days ago with no reply
-  const staleSent = cards.filter(c => c.status === "sent" && c.sent_at && (Date.now() - new Date(c.sent_at).getTime()) > 3 * 86400000).length;
-  if (staleSent > 0) attentionItems.push({ icon: "↻", color: T.blue, text: `${staleSent} sent email${staleSent !== 1 ? "s" : ""} with no reply in 3+ days — consider a follow-up`, tab: "outreach" });
-  if (needsAttention.length > 0) needsAttention.slice(0, 3).forEach(a => attentionItems.push({ icon: "●", color: T.red, text: `${a.clientName}: ${a.topFinding}`, tab: "analyst" }));
-  if (budgetPct > 80) attentionItems.push({ icon: "$", color: T.amber, text: `AI spend at ${budgetPct}% of monthly budget`, tab: "ops" });
-
   // ── Recent activity feed (last obs events) ──
   const FN_LABELS = { analyst_call: "Ran account analysis", portfolio_synthesis: "Synthesized portfolio", pre_call_brief: "Generated call brief", generate_draft: "Drafted outreach email", global_agent: "Answered via assistant" };
   const recentActivity = [...obsLogs].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 6);
@@ -276,26 +260,8 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
         </div>
       </div>
 
-      {/* What needs you now — hero band. This view's ONE glow moment. */}
-      <div style={{ background: T.raised, borderRadius: "18px", padding: "22px 26px", marginBottom: "16px", border: `1px solid ${T.line}`, boxShadow: `${T.shadowCard}, ${T.glowBrass}`, position: "relative", overflow: "hidden" }}>
-        <div style={{ ...sectionLabelBase, color: attentionItems.length > 0 ? T.gold : T.muted, marginBottom: "14px" }}>What Needs You Now</div>
-        {attentionItems.length === 0 ? (
-          <div style={{ fontSize: "14px", color: T.muted, fontWeight: 500 }}>✓ All clear — nothing demands your attention right now.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {attentionItems.slice(0, 6).map((item, i) => (
-              <div key={i} onClick={() => jump(item.tab)} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: item.tab ? "pointer" : "default", padding: "4px 0" }}>
-                <span style={{ width: "24px", height: "24px", borderRadius: "7px", background: item.color + "22", color: item.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700, flexShrink: 0 }}>{item.icon}</span>
-                <span style={{ fontSize: "13px", color: T.ink, fontWeight: 500, flex: 1 }}>{item.text}</span>
-                {item.tab && <span style={{ fontSize: "16px", color: T.muted }}>›</span>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Top stat row */}
-      <div className="co-grid3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "16px" }}>
+      <div className="co-grid3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px", marginBottom: "16px" }}>
         <Card>
           <SectionLabel>Outreach Pipeline</SectionLabel>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
