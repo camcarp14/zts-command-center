@@ -3,7 +3,7 @@
 //
 // One site, one login, one toggle. The shell owns exactly four things:
 //   • auth (a single login gates all three tools)
-//   • the top-of-screen app toggle (ZTS · Clarify · Runway), plus ⌥1/2/3
+//   • the top-of-screen app toggle (ZTS · Clarify · Runway · Macro), plus ⌥1-4
 //   • per-tool theming (it stamps @cc/design's CSS vars on a wrapper, so
 //     switching tools re-accents the whole page over the shared dark canvas)
 //   • the cross-tool System hub (usage · minds · agents)
@@ -22,6 +22,7 @@ const TOOLS = {
   zts: lazy(() => import("@app/zts")),
   clarify: lazy(() => import("@app/clarify")),
   runway: lazy(() => import("@app/runway")),
+  macro: lazy(() => import("@app/macro")),
 };
 
 // The shell-owned cross-tool management surface (Usage / Minds / Agents).
@@ -169,7 +170,7 @@ export default function Shell() {
     try { localStorage.setItem("cc_active_app", a); } catch {}
   }, []);
 
-  // ⌥1 / ⌥2 / ⌥3 jump between tools. Deliberately NOT ⌘K — each tool owns its
+  // ⌥1 / ⌥2 / ⌥3 / ⌥4 jump between tools. Deliberately NOT ⌘K — each tool owns its
   // own (richer) ⌘K palette, and Option+number never collides with the browser.
   useEffect(() => {
     const onKey = (e) => {
@@ -177,7 +178,7 @@ export default function Shell() {
       // Match e.code, not e.key: on macOS, Option composes the digit into a glyph
       // (⌥1 → "¡"), so e.key is never "1"/"2"/"3" and the shortcut would silently
       // do nothing. e.code stays "Digit1".."Digit3" regardless of the modifier.
-      const i = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
+      const i = ["Digit1", "Digit2", "Digit3", "Digit4"].indexOf(e.code);
       if (i === -1 || !APPS[i]) return;
       e.preventDefault();
       pick(APPS[i]);
