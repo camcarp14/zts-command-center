@@ -18,6 +18,7 @@ export default defineConfig({
       "@cc/supabase": r("../../packages/supabase/index.js"),
       "@app/zts": r("../zts/src/Root.jsx"),
       "@app/clarify": r("../clarify/src/Root.jsx"),
+      "@app/runway": r("../runway/src/Root.jsx"),
     },
   },
   server: { fs: { allow: [r("../../")] } },

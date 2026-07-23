@@ -1,0 +1,16 @@
+{
+  "name": "@app/runway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/Root.jsx"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "react-router-dom": "^6.30.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

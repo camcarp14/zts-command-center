@@ -20,7 +20,7 @@ import { auth, isConfigured } from "@cc/supabase";
 const TOOLS = {
   zts: lazy(() => import("@app/zts")),
   clarify: lazy(() => import("@app/clarify")),
-  // runway: lazy(() => import("@app/runway")),    // increment 3
+  runway: lazy(() => import("@app/runway")),
 };
 
 // ─── hooks ────────────────────────────────────────────────────────────────────
