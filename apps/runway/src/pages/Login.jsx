@@ -45,7 +45,7 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login card pagefade" onSubmit={submit}>
         <div className="brand" style={{ padding: '0 0 10px' }}><span className="dot" />RUNWAY</div>
-        <p className="sub" style={{ marginTop: 0 }}>Private job-search command center. One seat, allowlisted email only.</p>
+        <p className="sub" style={{ marginTop: 0 }}>Private job-search command board. One seat, allowlisted email only.</p>
         <div className="field">
           <label className="f" htmlFor="login-email">Email</label>
           <input id="login-email" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
