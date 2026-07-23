@@ -1,6 +1,6 @@
 [build]
   command = "npm install && npm run build"
-  publish = "dist"
+  publish = "apps/shell/dist"
 
 # SPA fallback — all routes serve index.html
 [[redirects]]
