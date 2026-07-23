@@ -1,6 +1,30 @@
-# ZTS Command Center
+# Command Center
 
-Zero To Secure's operations tool — three pillars, one app:
+One site, one login, one toggle — the operations hub that houses three tools
+under a single shell. A top-of-screen toggle (a bottom bar on mobile) switches
+between them; each is lazy-loaded and re-skins the whole page to its own accent.
+
+| Module | What it is |
+|---|---|
+| **ZTS** | Zero To Secure's creator registry + content studio (light / emerald) |
+| **Clarify** | Outreach & pipeline CRM (dark / brass) |
+| **Runway** | Job-search command board (dark / amber) |
+
+Above them all sits **System** — a cross-tool hub that merges usage, the neural
+"minds" (DNA), and the agent rosters from every module into one place.
+
+This is an npm-workspaces monorepo: the shell lives in `apps/shell`, each tool in
+`apps/{zts,clarify,runway}`, and the shared design tokens / UI primitives /
+Supabase client in `packages/{design,ui,supabase}`. One Netlify deploy serves the
+shell (`apps/shell/dist`) with every tool's functions merged under
+`netlify/functions`. See [docs/UNIFICATION-PLAN.md](docs/UNIFICATION-PLAN.md) for
+the architecture and [docs/DEPLOY.md](docs/DEPLOY.md) for the runbook.
+
+---
+
+## ZTS module
+
+Zero To Secure's operations tool — three pillars, one tab set:
 
 | Tab | What lives there |
 |---|---|
