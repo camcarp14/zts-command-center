@@ -53,8 +53,10 @@ async function callClaude({ system, messages, model = "claude-haiku-4-5-20251001
   try {
     const isDeployed = window.location.hostname !== "localhost";
     const url = isDeployed ? "/.netlify/functions/claude" : "https://api.anthropic.com/v1/messages";
+    let bearer = null;
+    if (isDeployed) { try { bearer = (await supabase?.auth.getSession())?.data?.session?.access_token || null; } catch {} }
     const headers = isDeployed
-      ? { "Content-Type": "application/json" }
+      ? { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) }
       : { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
     const body = { model, max_tokens: maxTokens, messages };
     if (system) body.system = system;
