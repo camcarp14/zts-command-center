@@ -286,7 +286,7 @@ export function MissionControl({ cards, onNavigate, inboundNew = 0 }) {
         const engOn = engCtrl.running;
         const lastAct = recentActivity[0];
         return (
-          <div onClick={() => jump("agents")} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", background: T.surface, borderRadius: "12px", border: `1px solid ${T.lineInk}`, boxShadow: T.shadowCard, cursor: "pointer", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", background: T.surface, borderRadius: "12px", border: `1px solid ${T.lineInk}`, boxShadow: T.shadowCard, marginBottom: "16px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: engOn ? T.green : T.faint, boxShadow: engOn ? `0 0 6px ${T.green}80` : "none", animation: engOn ? "pulse 2.5s infinite" : "none", flexShrink: 0 }} />
             <span style={{ fontSize: "12px", color: T.muted, fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               Agent engine {engOn ? "running" : "paused"} · {agentRoster.filter(a => a.enabled).length}/{agentRoster.length} agents on{lastAct ? ` · last call ${ago(new Date(lastAct.ts).getTime())}` : ""}

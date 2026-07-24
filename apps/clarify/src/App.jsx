@@ -16,7 +16,6 @@ import { InboundView } from "./features/inbound/InboundView.jsx";
 import { AnalystView } from "./features/analyst/AnalystView.jsx";
 import { ClientsView } from "./features/clients/ClientsView.jsx";
 import { ObservabilityView } from "./features/system/ObservabilityView.jsx";
-import { AgentsView } from "./features/system/AgentsView.jsx";
 import { GlobalAgent } from "./features/system/GlobalAgent.jsx";
 import { SettingsView } from "./features/system/SettingsView.jsx";
 import { MissionControl } from "./features/mission/MissionControl.jsx";
@@ -29,7 +28,7 @@ import { useSequenceEngine } from "./lib/engineLoop.js";
 import { seqDb } from "./lib/sequenceDb.js";
 import { classifyReplyAI } from "./lib/classify.js";
 
-const ROUTABLE_VIEWS = ["mission", "analytics", "agents", "inbound", "outreach", "queue", "sequences", "analyst", "clients", "dna", "calendar", "ops", "settings"];
+const ROUTABLE_VIEWS = ["mission", "analytics", "inbound", "outreach", "queue", "sequences", "analyst", "clients", "dna", "calendar", "ops", "settings"];
 const parseHash = () => {
   const seg = (window.location.hash || "").replace(/^#\/?/, "").split("/");
   return { view: ROUTABLE_VIEWS.includes(seg[0]) ? seg[0] : "mission", sub: seg[1] ? decodeURIComponent(seg[1]) : null };
@@ -44,13 +43,13 @@ const NAV_TABS = [
   { key: "inbound", label: "Inbound", icon: "✦", views: ["inbound"] },
   { key: "clients", label: "Clients", icon: "▣", views: ["clients", "analyst"] },
   { key: "dna", label: "DNA", icon: "⌬", views: ["dna"] },
-  { key: "system", label: "System", icon: "⚙", views: ["agents", "ops", "settings"] },
+  { key: "system", label: "System", icon: "⚙", views: ["ops", "settings"] },
 ];
 const SUB_NAVS = {
   mission: [{ view: "mission", label: "Today" }, { view: "analytics", label: "Analytics" }],
   outreach: [{ view: "outreach", label: "Pipeline" }, { view: "queue", label: "Queue" }, { view: "sequences", label: "Sequences" }, { view: "calendar", label: "Calendar" }],
   clients: [{ view: "clients", label: "Accounts" }, { view: "analyst", label: "Analyst" }],
-  system: [{ view: "agents", label: "Agents" }, { view: "ops", label: "Costs" }, { view: "settings", label: "Settings" }],
+  system: [{ view: "ops", label: "Costs" }, { view: "settings", label: "Settings" }],
 };
 const tabForView = (view) => NAV_TABS.find(t => t.views.includes(view))?.key || "mission";
 
@@ -859,7 +858,7 @@ export default function App({ embedded = false }) {
       {undoState && <UndoToast message={undoState.message} onUndo={undoState.restore} onDismiss={() => setUndoState(null)} />}
       {showShortcuts && <ShortcutHelp onClose={() => setShowShortcuts(false)} />}
       <div className="co-viewwrap">
-      {currentView === "inbound" ? <InboundView cards={cards} onNavigate={setCurrentView} onCardsChange={loadData} toneMemory={toneMemory} /> : currentView === "analyst" ? <AnalystView /> : currentView === "clients" ? <ClientsView deepClientId={routeSub} onNavigate={setCurrentView} /> : currentView === "ops" ? <ObservabilityView /> : currentView === "mission" ? <MissionControl cards={cards} onNavigate={setCurrentView} inboundNew={inboundNew} /> : currentView === "calendar" ? <CalendarView cards={cards} onStatusChange={handleStatusChange} onDataChange={loadData} /> : currentView === "agents" ? <AgentsView cards={cards} /> : currentView === "queue" ? <QueueView onNavigate={setCurrentView} /> : currentView === "sequences" ? <SequencesView /> : currentView === "analytics" ? <AnalyticsView cards={cards} /> : currentView === "dna" ? <DnaView cards={cards} toneMemory={toneMemory} /> : currentView === "settings" ? <SettingsView /> : null}
+      {currentView === "inbound" ? <InboundView cards={cards} onNavigate={setCurrentView} onCardsChange={loadData} toneMemory={toneMemory} /> : currentView === "analyst" ? <AnalystView /> : currentView === "clients" ? <ClientsView deepClientId={routeSub} onNavigate={setCurrentView} /> : currentView === "ops" ? <ObservabilityView /> : currentView === "mission" ? <MissionControl cards={cards} onNavigate={setCurrentView} inboundNew={inboundNew} /> : currentView === "calendar" ? <CalendarView cards={cards} onStatusChange={handleStatusChange} onDataChange={loadData} /> : currentView === "queue" ? <QueueView onNavigate={setCurrentView} /> : currentView === "sequences" ? <SequencesView /> : currentView === "analytics" ? <AnalyticsView cards={cards} /> : currentView === "dna" ? <DnaView cards={cards} toneMemory={toneMemory} /> : currentView === "settings" ? <SettingsView /> : null}
       </div>
       {currentView === "outreach" && <div className="co-viewwrap" style={{ display: "flex", minHeight: "calc(100vh - 52px)" }}>
         <div style={{ flex: 1, padding: "24px 28px", overflow: "auto" }}>

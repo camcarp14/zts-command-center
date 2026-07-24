@@ -217,10 +217,39 @@ function Minds({ onOpenTool }) {
 }
 
 // ─── AGENTS ────────────────────────────────────────────────────────────────────
+// The engine controls for every tool live here now (removed from the tools'
+// own tabs to centralize the levers). Both tools share one engine_ctrl shape
+// { running, observeOnly, allowSonnet, pauseWhenIdle, cadenceSec, ... } written
+// as plain JSON under their prefix; each tool's headless engine re-reads it on
+// every heartbeat and on remount, so toggling here drives it directly.
+const ENGINE_DEFAULTS = { running: false, observeOnly: true, allowSonnet: false, pauseWhenIdle: true, cadenceSec: 20 };
+
+const Switch = ({ on }) => (
+  <span style={{ width: 40, height: 23, borderRadius: 99, background: on ? "#4FD694" : "rgba(255,255,255,0.14)", position: "relative", flexShrink: 0, transition: "background .2s cubic-bezier(0.16,1,0.3,1)" }}>
+    <span style={{ position: "absolute", top: 2.5, left: on ? 19.5 : 2.5, width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.4)", transition: "left .2s cubic-bezier(0.16,1,0.3,1)" }} />
+  </span>
+);
+const CtrlRow = ({ on, onClick, label, sub, tone }) => (
+  <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", background: "none", border: "none", borderTop: `1px solid ${P.line}`, cursor: "pointer", padding: "11px 0", textAlign: "left" }}>
+    <span style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: tone || P.ink }}>{label}</div>
+      {sub && <div style={{ fontSize: 11, color: P.faint, marginTop: 2 }}>{sub}</div>}
+    </span>
+    <Switch on={on} />
+  </button>
+);
+
 function Agents() {
+  const [, force] = useState(0);
+  const patch = (app, key, p) => {
+    const cur = readJSON(`${LS[app]}${key}`, {});
+    try { localStorage.setItem(`${LS[app]}${key}`, JSON.stringify({ ...cur, ...p })); } catch { /* storage full/blocked — nothing to do */ }
+    force((n) => n + 1);
+  };
+
   const tools = ["zts", "clarify"].map((app) => ({
     app,
-    ctrl: readJSON(`${LS[app]}engine_ctrl`, {}),
+    ctrl: { ...ENGINE_DEFAULTS, ...readJSON(`${LS[app]}engine_ctrl`, {}) },
     worker: readJSON(`${LS[app]}dna_worker_ctrl`, {}),
     kb: readJSON(`${LS[app]}agent_kb`, []),
   }));
@@ -229,40 +258,36 @@ function Agents() {
     .sort((a, b) => new Date(b.ts) - new Date(a.ts))
     .slice(0, 30);
 
-  const StatusPill = ({ on, label }) => (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: on ? "#4FD694" : P.faint, background: on ? "rgba(79,214,148,0.12)" : "rgba(255,255,255,0.04)", border: `1px solid ${on ? "rgba(79,214,148,0.3)" : P.line}`, borderRadius: 99, padding: "3px 9px" }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: on ? "#4FD694" : P.faint }} />{label}
-    </span>
-  );
-
   return (
     <div>
-      <Header title="Agents" sub="What every tool's headless worker is doing — one dock" />
+      <Header title="Agents" sub="Drive every tool's headless engine from one place — play/pause, token limits, and the DNA worker" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         {tools.map(({ app, ctrl, worker }) => (
           <Card key={app}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
               <Dot app={app} size={10} />
               <span style={{ fontSize: 14, fontWeight: 800, color: P.ink, fontFamily: P.display }}>{appMeta(app).brand}</span>
+              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: ctrl.running ? "#4FD694" : P.faint }}>{ctrl.running ? "● Running" : "Paused"}</span>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <StatusPill on={!!ctrl.running} label={ctrl.running ? "Engine running" : "Engine paused"} />
-              {ctrl.observeOnly && <StatusPill on={false} label="Observe-only" />}
-              <StatusPill on={!!worker.running} label={worker.running ? "DNA worker on" : "DNA worker off"} />
-            </div>
-            {(ctrl.hourlyCostCap != null || ctrl.cadenceSec != null) && (
-              <div style={{ fontSize: 11.5, color: P.muted, marginTop: 11, display: "flex", gap: 16 }}>
-                {ctrl.cadenceSec != null && <span>cadence {ctrl.cadenceSec}s</span>}
-                {ctrl.hourlyCostCap != null && <span>cap {fmt$(ctrl.hourlyCostCap)}/hr</span>}
-              </div>
-            )}
+            <CtrlRow on={!!ctrl.running} onClick={() => patch(app, "engine_ctrl", { running: !ctrl.running })}
+              label={ctrl.running ? "Engine running" : "Engine paused"}
+              sub={`Free heartbeat every ${ctrl.cadenceSec ?? 20}s${ctrl.hourlyCostCap != null ? ` · cap ${fmt$(ctrl.hourlyCostCap)}/hr` : ""}`}
+              tone={ctrl.running ? "#4FD694" : P.ink} />
+            <CtrlRow on={!!ctrl.observeOnly} onClick={() => patch(app, "engine_ctrl", { observeOnly: !ctrl.observeOnly })}
+              label="Observe-only" sub="Heuristics only — never spends tokens" />
+            <CtrlRow on={!!ctrl.allowSonnet} onClick={() => patch(app, "engine_ctrl", { allowSonnet: !ctrl.allowSonnet })}
+              label="Allow Sonnet" sub="Off = synthesis stays on cheap Haiku" />
+            <CtrlRow on={!!ctrl.pauseWhenIdle} onClick={() => patch(app, "engine_ctrl", { pauseWhenIdle: !ctrl.pauseWhenIdle })}
+              label="Pause when idle" sub="Auto-stop after you've been away" />
+            <CtrlRow on={!!worker.running} onClick={() => patch(app, "dna_worker_ctrl", { running: !worker.running })}
+              label="DNA worker" sub="Compiles the mind into the prompt on a heartbeat" />
           </Card>
         ))}
       </div>
       <Card>
         <SectionLabel>Recent agent activity</SectionLabel>
         {feed.length === 0 ? (
-          <div style={{ color: P.faint, fontSize: 12.5, padding: "10px 0" }}>No agent activity logged yet. Turn on an engine in ZTS or Clarify.</div>
+          <div style={{ color: P.faint, fontSize: 12.5, padding: "10px 0" }}>No agent activity logged yet. Turn on an engine above.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {feed.map((e, i) => (
@@ -276,6 +301,9 @@ function Agents() {
           </div>
         )}
       </Card>
+      <div style={{ fontSize: 11.5, color: P.faint, marginTop: 12, lineHeight: 1.5 }}>
+        Changes apply the next time each tool's engine ticks (it re-reads these on every heartbeat). The per-agent roster still shows on each tool's Mission view.
+      </div>
     </div>
   );
 }
