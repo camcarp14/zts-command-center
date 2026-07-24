@@ -1550,7 +1550,7 @@ function MissionView({ creators, shorts, onNavigate, isMobile, loading }) {
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? "12px" : "16px" }}>
         <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}><Label>Agent Roster</Label><span onClick={() => onNavigate("agents")} style={{ fontSize: "10px", color: T.amberDeep, cursor: "pointer", fontWeight: 700 }}>Engine ›</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}><Label>Agent Roster</Label><span style={{ fontSize: "10px", color: T.faint, fontWeight: 700 }}>Controls in System ›</span></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             {roster.map((a, i) => { const active = a.enabled && engCtrl.running; return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 11px", background: T.subtle, borderRadius: "9px", border: `1px solid ${T.line}` }}>
@@ -1775,7 +1775,7 @@ export default function App({ embedded = false }) {
     if (data?.[0]) setArticles(prev => [data[0], ...prev]);
   };
 
-  const TABS = ["mission", "creators", "studio", "seo", "dna", "agents", "ops"];
+  const TABS = ["mission", "creators", "studio", "seo", "dna", "ops"];
 
   // Sliding tab indicator — measured from the active tab's DOM position so the
   // white pill glides between tabs instead of teleporting.
@@ -1796,12 +1796,12 @@ export default function App({ embedded = false }) {
   // render; the list is small and the handlers aren't stable refs anyway.
   const paletteActions = (() => {
     const acts = [];
-    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", dna: "DNA", agents: "Agents", ops: "Ops" };
+    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", dna: "DNA", ops: "Ops" };
     TABS.forEach(t => acts.push({ id: `nav_${t}`, group: "Go to", icon: "→", label: TAB_LABELS[t] || t, run: () => setView(t) }));
     acts.push({ id: "act_short", group: "Create", icon: "✦", label: "New Short", sub: "Generate a full Shorts package", run: () => { signalCreate("studio"); setView("studio"); } });
     acts.push({ id: "act_article", group: "Create", icon: "✦", label: "New Article", sub: "Draft an SEO article into review", run: () => { signalCreate("seo"); setView("seo"); } });
     acts.push({ id: "act_creator", group: "Create", icon: "+", label: "Add Creator", sub: "Add a YouTube creator to the pipeline", run: () => { signalCreate("creators"); setView("creators"); } });
-    acts.push({ id: "act_pass", group: "Action", icon: "⚡", label: "Run engine pass now", run: () => { sm.set("engine_force_pass", true); eng.set({ running: true }); setView("agents"); } });
+    acts.push({ id: "act_pass", group: "Action", icon: "⚡", label: "Run engine pass now", run: () => { sm.set("engine_force_pass", true); eng.set({ running: true }); } });
     creators.slice(0, 200).forEach(c => c.channel_name && acts.push({ id: `cr_${c.id}`, group: "Creator", icon: "▸", label: c.channel_name, sub: `${fmtSubs(c.subscriber_count)} subs · ${c.stage || "prospected"}`, run: () => setView("creators") }));
     shorts.slice(0, 200).forEach(s => acts.push({ id: `sh_${s.id}`, group: "Short", icon: "▸", label: s.title || s.topic || "Untitled Short", sub: s.stage, run: () => setView("studio") }));
     articles.slice(0, 100).forEach(a => acts.push({ id: `ar_${a.id}`, group: "Article", icon: "▸", label: a.title_tag || a.keyword || "Untitled", sub: a.stage, run: () => setView("seo") }));
@@ -1855,7 +1855,6 @@ export default function App({ embedded = false }) {
       {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} />}
       {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.seo} onSignalConsumed={() => clearSignal("seo")} />}
       {view === "dna" && <DnaView creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />}
-      {view === "agents" && <AgentsView isMobile={isMobile} />}
       {view === "ops" && <OpsView isMobile={isMobile} />}
       {isMobile && <BottomNav view={view} setView={setView} tabs={TABS} />}
     </div>
