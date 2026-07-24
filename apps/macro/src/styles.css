@@ -126,9 +126,17 @@ a { color: var(--accent); text-decoration: none; }
 .nav button.on svg { color: var(--accent); }
 .nav button:active { transform: scale(0.94); }
 @media (min-width: 900px) {
-  .nav { position: static; background: none; border: none; backdrop-filter: none; padding: 0; justify-content: flex-start; gap: 4px; margin: 2px 0 14px; }
-  .nav button { flex: none; flex-direction: row; gap: 8px; font-size: 13px; padding: 8px 14px; min-height: 40px; border: 1px solid transparent; }
-  .nav button.on { background: var(--card); border-color: var(--border); }
+  /* Desktop: the same grouped pill-bar the other Pentagon tools use — a rounded
+     container of tab pills, active pill raised with a soft shadow. */
+  .nav {
+    position: static; margin: 2px 0 14px; justify-content: flex-start;
+    display: inline-flex; gap: 2px; padding: 3px; backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.045); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .nav button { flex: none; flex-direction: row; gap: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; padding: 6px 14px; min-height: 36px; border: none; border-radius: 7px; color: var(--ink-3); }
+  .nav button svg { width: 17px; height: 17px; }
+  .nav button.on { background: var(--card-2); color: var(--ink); box-shadow: var(--shadow-1); }
+  .nav button.on svg { color: var(--accent); }
 }
 
 /* ---------------- cards & grid ---------------- */

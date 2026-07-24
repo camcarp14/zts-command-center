@@ -49,12 +49,24 @@ function useSession() {
 }
 
 // ─── boot + login ─────────────────────────────────────────────────────────────
-const BrandMark = ({ size = 12, gap = 4 }) => (
-  <span style={{ display: "inline-flex", gap: `${gap}px`, alignItems: "center" }}>
-    {APPS.map((a) => (
-      <span key={a} style={{ width: `${size}px`, height: `${size}px`, borderRadius: "50%", background: appMeta(a).accent, boxShadow: `0 0 10px ${appMeta(a).accent}66` }} />
-    ))}
-  </span>
+// The Pentagon mark: a five-sided ring (the name) whose gradient sweeps through
+// all four tool accents — violet → emerald → brass → amber (cool to warm), one
+// glyph that says "four tools under one shell". Reads down to favicon size.
+const PentagonLogo = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" style={{ display: "block", flexShrink: 0, filter: "drop-shadow(0 0 6px rgba(139,124,255,0.28))" }}>
+    <defs>
+      <linearGradient id="pentagon-grad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#8B7CFF" />
+        <stop offset="0.38" stopColor="#3ECF8E" />
+        <stop offset="0.72" stopColor="#C9A557" />
+        <stop offset="1" stopColor="#FFB224" />
+      </linearGradient>
+    </defs>
+    <path
+      fillRule="evenodd" clipRule="evenodd" fill="url(#pentagon-grad)"
+      d="M16 4 L27.41 12.29 L23.05 25.71 L8.95 25.71 L4.59 12.29 Z M16 9.9 L21.8 14.12 L19.58 20.93 L12.42 20.93 L10.2 14.12 Z"
+    />
+  </svg>
 );
 
 function Boot() {
@@ -81,8 +93,8 @@ function LoginScreen() {
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "radial-gradient(1200px 600px at 50% -10%, #171b26 0%, #0b0d12 60%)", padding: 20 }}>
       <form onSubmit={submit} style={{ width: "100%", maxWidth: 360, background: "#12151d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: "30px 26px", boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <BrandMark size={11} />
+        <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 20 }}>
+          <PentagonLogo size={26} />
           <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "#e9e7e0", fontFamily: "'Syne',system-ui" }}>The Pentagon</span>
         </div>
         <div style={{ fontSize: 12.5, color: "#9aa1ae", marginBottom: 18, lineHeight: 1.6 }}>One sign-in for ZTS, Clarify, and Runway.</div>
@@ -202,12 +214,12 @@ export default function Shell() {
         background: "color-mix(in srgb, var(--bg) 82%, transparent)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-          {!isMobile && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <BrandMark size={9} />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <PentagonLogo size={isMobile ? 21 : 23} />
+            {!isMobile && (
               <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)", fontFamily: "'Syne',system-ui", whiteSpace: "nowrap" }}>The Pentagon</span>
-            </span>
-          )}
+            )}
+          </span>
           <AppToggle active={active} onPick={pick} compact={isMobile} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -1,10 +1,13 @@
-// The cockpit: one glance → one directive. Directive card leads; position,
-// entry plan, torque, and regime reads support it. Every number wears its
-// freshness; every claim shows its work.
+// The cockpit: a dashboard, not a document. One glance answers three questions —
+// what do I do (the directive), what's the market doing (market reads), where do
+// I stand (position). The heavy reasoning is one tap away, never the first thing
+// you read: the directive's rationale, the regime facts, and the full run plan
+// all live behind "show the work" disclosures so the default view stays a strong,
+// scannable dashboard. Every number still wears its freshness; every claim can
+// still show its work.
 import React, { useState } from 'react'
 import { SkPage, Expand, FreshChip } from './primitives.jsx'
 import { sizePosition, initialStop } from '../lib/risk.js'
-import { alignByDay, mNavSeries } from '../lib/torque.js'
 import { fmtPx, round2 } from '../lib/format.js'
 import RunPlan from './RunPlan.jsx'
 
@@ -23,7 +26,6 @@ export default function Cockpit({ derived, settings, position, sources, onReload
   const loading = sources.quote.loading && !sources.quote.data && !sources.quote.error
   if (loading && !derived.price) return <SkPage cards={4} />
 
-  const d = derived.directive
   const failing = [
     sources.quote.error && 'MSTR quote',
     sources.btc.error && 'BTC',
@@ -42,28 +44,121 @@ export default function Cockpit({ derived, settings, position, sources, onReload
         </div>
       )}
 
-      <section className={`card directive span2 ${d.severity}`} data-testid="directive">
-        <div className="ttl">Directive
-          <span className="spacer" />
-          <FreshChip fresh={derived.freshQuote} label="MSTR" />
-          <FreshChip fresh={derived.freshBtc} label="BTC" />
-        </div>
-        <div className="action" data-testid="directive-action">{ACTION_COPY[d.action] ?? d.action}</div>
-        <p className="sub" style={{ marginTop: 4, fontSize: 14.5 }}>{d.headline}</p>
-        <ul>
-          {d.reasons.map((r, i) => <li key={i}>{r}</li>)}
-        </ul>
-        {d.guardrails.map((g, i) => (
-          <div className="guardrail" key={i}><span aria-hidden>⚠︎</span><span>{g}</span></div>
-        ))}
-      </section>
-
+      <DirectiveHero derived={derived} />
+      <MarketReads derived={derived} settings={settings} />
       {position && <PositionCard derived={derived} position={position} />}
-      <RunPlan derived={derived} settings={settings} position={position} />
       <EntryPlanner derived={derived} settings={settings} hasPosition={!!position} />
-      <TorqueCard derived={derived} settings={settings} />
-      <RegimeCard title="MSTR regime" read={derived.regime} extra={derived.pullback} breakout={derived.breakout} fresh={derived.freshCandles} />
-      <RegimeCard title="BTC confirmation" read={derived.btcAlign} fresh={derived.freshBtcCandles} />
+      <RunPlanDisclosure derived={derived} settings={settings} position={position} />
+    </div>
+  )
+}
+
+/** The hero: the one call, big. Headline + guardrails stay visible; the bullet
+ *  rationale (the old wall of text) collapses behind "why this call". */
+function DirectiveHero({ derived }) {
+  const d = derived.directive
+  const [why, setWhy] = useState(false)
+  return (
+    <section className={`card directive span2 ${d.severity}`} data-testid="directive">
+      <div className="ttl">Directive
+        <span className="spacer" />
+        <FreshChip fresh={derived.freshQuote} label="MSTR" />
+        <FreshChip fresh={derived.freshBtc} label="BTC" />
+      </div>
+      <div className="action" data-testid="directive-action">{ACTION_COPY[d.action] ?? d.action}</div>
+      <p className="sub" style={{ marginTop: 4, fontSize: 14.5 }}>{d.headline}</p>
+      {d.guardrails.map((g, i) => (
+        <div className="guardrail" key={i}><span aria-hidden>⚠︎</span><span>{g}</span></div>
+      ))}
+      {d.reasons?.length > 0 && (
+        <>
+          <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={() => setWhy((w) => !w)} aria-expanded={why}>
+            {why ? 'hide the reasoning' : 'why this call'}
+          </button>
+          <Expand open={why}>
+            <ul>{d.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+          </Expand>
+        </>
+      )}
+    </section>
+  )
+}
+
+/** The market at a glance — regime + BTC confirmation as badges, leverage truth
+ *  as tiles. One card replaces the two regime cards and the torque card; the
+ *  supporting facts stay available behind "show the work". */
+function MarketReads({ derived, settings }) {
+  const [open, setOpen] = useState(false)
+  const { regime, btcAlign, torqueRead, beta, nav, rs, pullback, breakout } = derived
+  const seeded = settings?.btcHoldingsSeeded || settings?.sharesSeeded
+  const facts = [...regime.facts, ...(pullback?.facts ?? []), ...(breakout?.facts ?? []), ...btcAlign.facts]
+  return (
+    <section className="card span2" data-testid="market-reads">
+      <div className="ttl">Market reads
+        <span className="spacer" />
+        <FreshChip fresh={derived.freshCandles} label="MSTR" />
+        <FreshChip fresh={derived.freshBtcCandles} label="BTC" />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <span className={`badge-regime ${regime.state}`}>MSTR {regime.state.replace('_', ' ')}{regime.score != null ? ` ${regime.score}` : ''}</span>
+        <span className={`badge-regime ${btcAlign.state}`}>BTC {btcAlign.state.replace('_', ' ')}{btcAlign.score != null ? ` ${btcAlign.score}` : ''}</span>
+        <span className={`chip grade-${torqueRead.grade}`}>leverage · {torqueRead.grade}</span>
+        {pullback?.stage === 'trigger' && <span className="chip live"><span className="dot" />pullback trigger</span>}
+        {breakout?.active && <span className="chip live"><span className="dot" />breakout {fmtPx(breakout.level)}</span>}
+      </div>
+
+      <div className="stats">
+        <div className="stat"><div className="k">Beta vs BTC</div><div className="v num">{beta == null ? '—' : `${round2(beta)}×`}</div><div className="d">30-day daily</div></div>
+        <div className="stat"><div className="k">mNAV</div><div className="v num">{nav?.mNav == null ? '—' : `${nav.mNav}×`}</div><div className="d">{nav?.premiumPct == null ? 'premium' : `${nav.premiumPct >= 0 ? '+' : ''}${round2(nav.premiumPct)}% prem`}</div></div>
+        <div className="stat"><div className="k">20d RS</div><div className={`v num ${rs?.spreadPct == null ? '' : rs.spreadPct >= 0 ? 'pos' : 'neg'}`}>{rs?.spreadPct == null ? '—' : `${rs.spreadPct >= 0 ? '+' : ''}${round2(rs.spreadPct)}pp`}</div><div className="d">MSTR − BTC</div></div>
+        <div className="stat"><div className="k">Implied BTC</div><div className="v num">{nav?.impliedBtcPrice == null ? '—' : `$${nav.impliedBtcPrice.toLocaleString('en-US')}`}</div><div className="d">price via MSTR</div></div>
+      </div>
+
+      <p className="sub" style={{ marginTop: 10 }}>{torqueRead.text}</p>
+      {seeded && (
+        <div className="guardrail"><span aria-hidden>⚠︎</span><span>
+          BTC holdings / share count are SEEDED estimates (as of {settings.btcHoldingsAsOf}) — verify against the latest 8-K in Settings; mNAV is only as honest as those two numbers.
+        </span></div>
+      )}
+      {facts.length > 0 && (
+        <>
+          <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            {open ? 'hide the work' : 'show the work'}
+          </button>
+          <Expand open={open}>
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+              {facts.map((f, i) => <li key={i} className="sub" style={{ margin: '3px 0' }}>{f}</li>)}
+            </ul>
+          </Expand>
+        </>
+      )}
+    </section>
+  )
+}
+
+/** The full run plan — radar, battle plan, thesis breaks — kept out of the
+ *  default glance and revealed on demand, so the cockpit leads with state, not
+ *  a wall of checklists. The armed/trigger signals themselves already surface as
+ *  chips in Market reads. */
+function RunPlanDisclosure({ derived, settings, position }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="span2" data-testid="run-plan-disclosure">
+      <button
+        className="btn ghost"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border)' }}
+      >
+        <span style={{ fontWeight: 700 }}>Run plan &amp; tickets</span>
+        <span className="tiny">{open ? 'hide ▾' : 'the radar, battle plan & thesis breaks ▸'}</span>
+      </button>
+      <Expand open={open}>
+        <div className="grid" style={{ marginTop: 12 }}>
+          <RunPlan derived={derived} settings={settings} position={position} />
+        </div>
+      </Expand>
     </div>
   )
 }
@@ -172,97 +267,4 @@ function sizingErrorCopy(code) {
     stop_not_below_entry: 'Computed stop is not below the entry price.',
     bad_input: 'Sizing inputs incomplete.',
   }[code] ?? code
-}
-
-function TorqueCard({ derived, settings }) {
-  const { beta, rs, nav, torqueRead } = derived
-  const seeded = settings?.btcHoldingsSeeded || settings?.sharesSeeded
-  const navHist = React.useMemo(() => {
-    if (!settings) return null
-    const aligned = alignByDay(derived.mstrCandles, derived.btcCandles)
-    return mNavSeries(aligned.a, aligned.b, { sharesOutstanding: settings.sharesOutstanding, btcHoldings: settings.btcHoldings })
-  }, [derived.mstrCandles, derived.btcCandles, settings])
-  return (
-    <section className="card" data-testid="torque-card">
-      <div className="ttl">Leverage truth
-        <span className="spacer" />
-        <span className={`chip grade-${torqueRead.grade}`}>{torqueRead.grade}</span>
-      </div>
-      <div className="stats">
-        <div className="stat"><div className="k">Beta vs BTC</div><div className="v num">{beta == null ? '—' : `${round2(beta)}×`}</div><div className="d">30-day daily</div></div>
-        <div className="stat"><div className="k">mNAV</div><div className="v num">{nav?.mNav == null ? '—' : `${nav.mNav}×`}</div><div className="d">{nav?.premiumPct == null ? '' : `${nav.premiumPct >= 0 ? '+' : ''}${round2(nav.premiumPct)}% premium`}</div></div>
-        <div className="stat"><div className="k">Implied BTC</div><div className="v num">{nav?.impliedBtcPrice == null ? '—' : `$${nav.impliedBtcPrice.toLocaleString('en-US')}`}</div><div className="d">price you pay via MSTR</div></div>
-        <div className="stat"><div className="k">20d RS</div><div className={`v num ${rs?.spreadPct == null ? '' : rs.spreadPct >= 0 ? 'pos' : 'neg'}`}>{rs?.spreadPct == null ? '—' : `${rs.spreadPct >= 0 ? '+' : ''}${round2(rs.spreadPct)}pp`}</div><div className="d">MSTR − BTC</div></div>
-      </div>
-      <p className="sub" style={{ marginTop: 10 }}>{torqueRead.text}</p>
-      {navHist && nav?.mNav != null && navHist.min != null && navHist.series.filter((x) => x != null).length > 30 && (
-        <MNavStrip hist={navHist} live={nav.mNav} />
-      )}
-      {seeded && (
-        <div className="guardrail"><span>⚠︎</span><span>
-          BTC holdings / share count are SEEDED estimates (as of {settings.btcHoldingsAsOf}). Verify against the latest 8-K in Settings — mNAV is only as honest as these two numbers.
-        </span></div>
-      )}
-    </section>
-  )
-}
-
-/** Where the LIVE premium sits vs the loaded history — a position strip,
- *  not a chart. The marker is the live mNAV (the same number the stat
- *  above shows), never the last candle's — a strip that contradicts its
- *  own card is worse than none. Approximation, labeled. */
-function MNavStrip({ hist, live }) {
-  const { min, max } = hist
-  const span = max - min
-  if (!(span > 0.005)) {
-    return (
-      <div style={{ marginTop: 10 }} data-testid="mnav-strip">
-        <div className="tiny">mNAV vs loaded history: range too flat to grade ({min}×) · assumes today's share count/holdings across history — shape, not gospel</div>
-      </div>
-    )
-  }
-  const posPct = Math.max(0, Math.min(100, ((live - min) / span) * 100))
-  return (
-    <div style={{ marginTop: 10 }} data-testid="mnav-strip">
-      <div className="tiny" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span>live mNAV vs loaded history</span>
-        <span className="num">{min}× — {max}×</span>
-      </div>
-      <div className="meter" role="img" aria-label={`live mNAV ${live} sits at ${Math.round(posPct)}% of its historical range ${min} to ${max}`}>
-        <div style={{ width: `${Math.max(3, posPct)}%` }} />
-      </div>
-      <div className="tiny" style={{ marginTop: 4 }}>
-        now {live}× · {posPct < 25 ? 'cheap end of the range — the leverage is on sale'
-          : posPct > 75 ? 'rich end of the range — you\'re paying up'
-            : 'mid-range'} · assumes today's share count/holdings across history — shape, not gospel
-      </div>
-    </div>
-  )
-}
-
-function RegimeCard({ title, read, extra, breakout, fresh }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <section className="card">
-      <div className="ttl">{title}
-        <span className="spacer" />
-        <FreshChip fresh={fresh} />
-        <span className={`badge-regime ${read.state}`}>{read.state.replace('_', ' ')}{read.score != null ? ` ${read.score}` : ''}</span>
-      </div>
-      {extra && extra.stage !== 'none' && (
-        <p className="sub" style={{ marginBottom: 6 }}>
-          {extra.stage === 'trigger' ? '● Pullback trigger LIVE' : '◐ Pullback setup forming'}
-        </p>
-      )}
-      {breakout?.active && <p className="sub" style={{ marginBottom: 6 }}>● Breakout over {fmtPx(breakout.level)}</p>}
-      <button className="btn ghost sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? 'hide the work' : 'show the work'}</button>
-      <Expand open={open}>
-        <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
-          {[...read.facts, ...(extra?.facts ?? []), ...(breakout?.facts ?? [])].map((f, i) => (
-            <li key={i} className="sub" style={{ margin: '3px 0' }}>{f}</li>
-          ))}
-        </ul>
-      </Expand>
-    </section>
-  )
 }
