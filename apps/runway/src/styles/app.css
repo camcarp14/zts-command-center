@@ -39,6 +39,10 @@ a:hover { text-decoration: underline; }
 .rail { border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; background: rgba(255,255,255,0.012); }
 .brand { display: flex; align-items: center; gap: 9px; padding: 4px 10px 16px; font-weight: 700; letter-spacing: 0.14em; font-size: 13px; }
 .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+/* The tab group. Base (fallback) is the old vertical rail; the desktop
+   embed overrides (Root.jsx) turn it into a Clarify/ZTS-style pill group, and
+   the mobile query below spreads it across the bottom bar. */
+.navgroup { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; color: var(--dim); font-weight: 500; transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
 .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); text-decoration: none; }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); }
@@ -258,6 +262,8 @@ td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
      indicator (max() guarantees breathing room even where env() is 0) */
   .rail { position: fixed; bottom: 0; top: auto; height: auto; width: 100%; flex-direction: row; align-items: center; border-top: 1px solid var(--border); border-right: none; background: var(--surface); z-index: 50; padding: 10px max(10px, env(safe-area-inset-right)) max(22px, calc(10px + env(safe-area-inset-bottom))) max(10px, env(safe-area-inset-left)); }
   .rail-foot { display: none; } .brand { display: none; }
+  /* the pill group opens up to fill the bar so its tabs spread edge-to-edge */
+  .navgroup { flex-direction: row; flex: 1; gap: 0; padding: 0; background: none; border: none; }
   .nav-item { flex: 1; justify-content: center; min-height: 44px; }
   .main { padding: max(14px, env(safe-area-inset-top)) 12px 140px; }
 

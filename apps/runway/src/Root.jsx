@@ -31,7 +31,14 @@ const EMBED_OVERRIDES = `
     padding: 8px 20px; z-index: 40;
   }
   .rail .brand { display: none; }
-  .rail .nav-item { flex: 0 0 auto; }
+  /* Clarify/ZTS-style pill group: a rounded container of tab pills, the active
+     pill filled with the surface + a soft shadow (not the old accent tint) so
+     Runway's menu reads identically to the other tools. */
+  .navgroup { flex-direction: row; gap: 2px; padding: 3px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; }
+  .rail .nav-item { flex: 0 0 auto; gap: 7px; padding: 6px 15px; border-radius: 7px; color: var(--faint); font-weight: 700; font-size: 11.5px; letter-spacing: 0.05em; font-family: 'Syne', system-ui; }
+  .rail .nav-item:hover { background: transparent; color: var(--text); }
+  .rail .nav-item.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-tab); }
+  .rail .nav-item .navcount { margin-left: 2px; min-width: 17px; height: 17px; font-size: 11px; }
   .rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: 14px; padding: 0; font-size: 12px; }
   .rail-foot .btn { display: none; }   /* the shell owns sign-out */
   /* Let the inner .pagefade own the width (reading pages cap at 1220, the

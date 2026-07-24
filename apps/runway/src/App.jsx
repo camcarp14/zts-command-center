@@ -17,12 +17,14 @@ function Rail() {
   return (
     <nav className="rail">
       <div className="brand"><span className="dot" />RUNWAY</div>
-      <NavLink to="/" end className={cls}>Board</NavLink>
-      <NavLink to="/capture" className={cls}>
-        Capture{queued > 0 && <span className="navcount" title={`${queued} discovered role${queued === 1 ? '' : 's'} to review`}>{queued}</span>}
-      </NavLink>
-      <NavLink to="/market" className={cls}>Insights</NavLink>
-      <NavLink to="/profile" className={cls}>Profile</NavLink>
+      <div className="navgroup">
+        <NavLink to="/" end className={cls}>Board</NavLink>
+        <NavLink to="/capture" className={cls}>
+          Capture{queued > 0 && <span className="navcount" title={`${queued} discovered role${queued === 1 ? '' : 's'} to review`}>{queued}</span>}
+        </NavLink>
+        <NavLink to="/market" className={cls}>Insights</NavLink>
+        <NavLink to="/profile" className={cls}>Profile</NavLink>
+      </div>
       <div className="rail-foot">
         <div><kbd>⌘K</kbd> jump anywhere</div>
         <div className="who" title={session?.user?.email}>{session?.user?.email}</div>
