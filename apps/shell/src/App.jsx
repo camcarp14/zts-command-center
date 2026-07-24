@@ -55,7 +55,7 @@ function useSession() {
 const PentagonLogo = ({ size = 22 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" style={{ display: "block", flexShrink: 0, filter: "drop-shadow(0 0 6px rgba(139,124,255,0.28))" }}>
     <defs>
-      <linearGradient id="pentagon-grad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <linearGradient id="pentagon-grad" x1="4" y1="5" x2="28" y2="27" gradientUnits="userSpaceOnUse">
         <stop offset="0" stopColor="#8B7CFF" />
         <stop offset="0.38" stopColor="#3ECF8E" />
         <stop offset="0.72" stopColor="#C9A557" />
@@ -64,7 +64,7 @@ const PentagonLogo = ({ size = 22 }) => (
     </defs>
     <path
       fillRule="evenodd" clipRule="evenodd" fill="url(#pentagon-grad)"
-      d="M16 4 L27.41 12.29 L23.05 25.71 L8.95 25.71 L4.59 12.29 Z M16 9.9 L21.8 14.12 L19.58 20.93 L12.42 20.93 L10.2 14.12 Z"
+      d="M16 5.25 L27.29 13.46 L22.98 26.74 L9.02 26.74 L4.71 13.46 Z M16 11.1 L21.74 15.27 L19.54 22.01 L12.46 22.01 L10.26 15.27 Z"
     />
   </svg>
 );
