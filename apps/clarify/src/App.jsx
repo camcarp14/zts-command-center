@@ -97,7 +97,7 @@ function SubNav({ tab, currentView, onNavigate }) {
 // Mobile bottom tab bar — icon-only, hidden on desktop via CSS.
 function BottomBar({ activeTab, onTab, inboundNew }) {
   return (
-    <div className="co-bottombar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 400, display: "none", background: "rgba(11,15,26,0.92)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(0,0,0,0.4)", paddingBottom: "min(env(safe-area-inset-bottom), 20px)" }}>
+    <div className="co-bottombar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 400, display: "none", background: "rgba(13,17,28,0.98)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(0,0,0,0.4)", paddingBottom: "min(env(safe-area-inset-bottom), 16px)" }}>
       <div style={{ display: "flex" }}>
         {NAV_TABS.map(t => {
           const on = activeTab === t.key;
