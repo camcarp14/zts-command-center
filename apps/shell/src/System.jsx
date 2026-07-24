@@ -11,7 +11,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import { appMeta, APPS } from "@cc/design";
-import { AnimatedNumber, EmptyState } from "@cc/ui";
+import { AnimatedNumber, EmptyState, useIsMobile } from "@cc/ui";
+import { auth } from "@cc/supabase";
 
 // Which localStorage prefix each tool writes under (they run on one domain now).
 const LS = { zts: "zts_", clarify: "sm_" };
@@ -53,8 +54,69 @@ const Stat = ({ label, children, sub }) => (
   </Card>
 );
 
+// ─── OVERVIEW (cross-tool digest) ────────────────────────────────────────────
+// The top line: total AI spend, tokens, and calls across every tool, plus a
+// per-tool breakdown. ZTS + Clarify log every call to localStorage; Runway runs
+// its AI server-side and Macro is keyless market data, so those two read
+// honestly as "not logged here" rather than a fake $0.
+function Overview({ isMobile }) {
+  const per = APPS.map((app) => {
+    if (!USAGE_APPS.includes(app)) return { app, tracked: false };
+    const log = readJSON(`${LS[app]}obs_log`, []);
+    let cost = 0, tok = 0, calls = 0;
+    if (Array.isArray(log)) for (const e of log) { cost += e.costEstimate || 0; tok += (e.inputTokens || 0) + (e.outputTokens || 0); calls += 1; }
+    return { app, tracked: true, cost, tok, calls };
+  });
+  const totals = per.reduce((t, p) => (p.tracked ? { cost: t.cost + p.cost, tok: t.tok + p.tok, calls: t.calls + p.calls } : t), { cost: 0, tok: 0, calls: 0 });
+  const maxCost = Math.max(0.0001, ...per.filter((p) => p.tracked).map((p) => p.cost));
+
+  return (
+    <div>
+      <Header title="Overview" sub="Token spend and usage across every Pentagon tool, at a glance" />
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <Stat label="Total spend"><AnimatedNumber value={totals.cost} format={fmt$} /></Stat>
+        <Stat label="Tokens" sub={`${fmtN(totals.tok)} across logged tools`}><AnimatedNumber value={totals.tok} format={fmtN} /></Stat>
+        <Stat label="AI calls"><AnimatedNumber value={totals.calls} format={fmtN} /></Stat>
+      </div>
+      <Card>
+        <SectionLabel>By tool</SectionLabel>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 14 }}>
+          {per.map((p) => (
+            <div key={p.app} style={{ background: P.surface2, border: `1px solid ${P.line}`, borderRadius: 12, padding: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <Dot app={p.app} size={9} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: P.ink, fontFamily: P.display }}>{appMeta(p.app).brand}</span>
+                {p.tracked && <span style={{ marginLeft: "auto", fontSize: 15, fontWeight: 800, color: P.ink, fontFamily: P.mono }}>{fmt$(p.cost)}</span>}
+              </div>
+              {p.tracked ? (
+                <>
+                  <div style={{ height: 6, borderRadius: 99, background: P.bg, overflow: "hidden", marginBottom: 8 }}>
+                    <div style={{ height: "100%", width: `${(p.cost / maxCost) * 100}%`, background: appMeta(p.app).accent, borderRadius: 99, transition: "width .4s cubic-bezier(0.16,1,0.3,1)" }} />
+                  </div>
+                  <div style={{ fontSize: 11.5, color: P.muted, display: "flex", gap: 14 }}>
+                    <span>{fmtN(p.tok)} tokens</span><span>{fmtN(p.calls)} calls</span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 11.5, color: P.faint, lineHeight: 1.5 }}>
+                  {p.app === "runway" ? "Runs its AI server-side — unified logging is the next step." : "Keyless market data — no Claude spend to log here."}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+      {totals.calls === 0 && (
+        <div style={{ fontSize: 11.5, color: P.faint, marginTop: 12, lineHeight: 1.5 }}>
+          No AI calls logged yet in ZTS or Clarify — generate a Short, draft outreach, or tailor a résumé and spend shows up here. See <strong style={{ color: P.muted }}>Usage</strong> for the call-by-call log.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── USAGE ─────────────────────────────────────────────────────────────────────
-function Usage() {
+function Usage({ isMobile }) {
   const [win, setWin] = useState("7d");
   const cutoff = win === "24h" ? Date.now() - 864e5 : win === "7d" ? Date.now() - 7 * 864e5 : 0;
 
@@ -101,7 +163,7 @@ function Usage() {
             <Stat label="Avg latency" sub="per call">{agg.calls ? Math.round(agg.lat / agg.calls) : 0}<span style={{ fontSize: 14, color: P.muted }}>ms</span></Stat>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1.3fr", gap: 12, marginBottom: 14 }}>
             <Card>
               <SectionLabel>Spend by tool</SectionLabel>
               {USAGE_APPS.map((app) => (
@@ -164,7 +226,7 @@ function statsFor(genome) {
   return { nodes: genome.nodes.length, edges: Array.isArray(genome.edges) ? genome.edges.length : 0, byRegion };
 }
 
-function Minds({ onOpenTool }) {
+function Minds({ onOpenTool, isMobile }) {
   const minds = ["zts", "clarify"].map((app) => ({ app, genome: readJSON(`${LS[app]}dna_genome`, null) }));
   const any = minds.some((m) => m.genome);
   return (
@@ -173,7 +235,7 @@ function Minds({ onOpenTool }) {
       {!any ? (
         <EmptyState icon="radar" title="No minds initialized yet" sub="Open ZTS or Clarify → DNA to seed a mind; it'll appear here." />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
           {minds.map(({ app, genome }) => {
             const s = statsFor(genome);
             const maxR = s ? Math.max(1, ...Object.values(s.byRegion)) : 1;
@@ -239,7 +301,7 @@ const CtrlRow = ({ on, onClick, label, sub, tone }) => (
   </button>
 );
 
-function Agents() {
+function Agents({ isMobile }) {
   const [, force] = useState(0);
   const patch = (app, key, p) => {
     const cur = readJSON(`${LS[app]}${key}`, {});
@@ -261,7 +323,7 @@ function Agents() {
   return (
     <div>
       <Header title="Agents" sub="Drive every tool's headless engine from one place — play/pause, token limits, and the DNA worker" />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
         {tools.map(({ app, ctrl, worker }) => (
           <Card key={app}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
@@ -331,24 +393,30 @@ function Segment({ value, onChange, options }) {
   );
 }
 
-const TABS = [["usage", "Usage"], ["minds", "Minds"], ["agents", "Agents"]];
+const TABS = [["overview", "Overview"], ["usage", "Usage"], ["minds", "Minds"], ["agents", "Agents"]];
 
 export default function System({ onExit, onOpenTool }) {
-  const [tab, setTab] = useState("usage");
+  const [tab, setTab] = useState("overview");
+  const isMobile = useIsMobile();
+  const btn = { background: "none", border: `1px solid ${P.line}`, color: P.muted, borderRadius: 8, padding: "6px 12px", fontSize: 11.5, cursor: "pointer", fontFamily: P.display, fontWeight: 600, whiteSpace: "nowrap" };
   return (
     <div style={{ minHeight: "calc(100vh - 52px)", background: P.bg, color: P.ink, fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "26px 24px 60px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
-          <div style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 11, background: P.surface2, border: `1px solid ${P.line}` }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto", padding: isMobile ? "18px 14px 80px" : "26px 24px 60px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 11, background: P.surface2, border: `1px solid ${P.line}`, maxWidth: "100%", overflowX: "auto" }}>
             {TABS.map(([k, label]) => (
-              <button key={k} onClick={() => setTab(k)} style={{ padding: "7px 16px", border: "none", borderRadius: 8, cursor: "pointer", background: tab === k ? P.surface : "transparent", color: tab === k ? P.ink : P.faint, fontSize: 12, fontWeight: 700, fontFamily: P.display, letterSpacing: "0.04em", textTransform: "uppercase" }}>{label}</button>
+              <button key={k} onClick={() => setTab(k)} style={{ padding: isMobile ? "6px 12px" : "7px 16px", border: "none", borderRadius: 8, cursor: "pointer", background: tab === k ? P.surface : "transparent", color: tab === k ? P.ink : P.faint, fontSize: isMobile ? 11 : 12, fontWeight: 700, fontFamily: P.display, letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>{label}</button>
             ))}
           </div>
-          <button onClick={onExit} style={{ background: "none", border: `1px solid ${P.line}`, color: P.muted, borderRadius: 8, padding: "6px 12px", fontSize: 11.5, cursor: "pointer", fontFamily: P.display, fontWeight: 600 }}>Back to tools →</button>
+          <div style={{ display: "inline-flex", gap: 8, marginLeft: "auto" }}>
+            <button onClick={() => auth.signOut()} style={btn}>Sign out</button>
+            <button onClick={onExit} style={btn}>{isMobile ? "← Back" : "Back to tools →"}</button>
+          </div>
         </div>
-        {tab === "usage" && <Usage />}
-        {tab === "minds" && <Minds onOpenTool={onOpenTool} />}
-        {tab === "agents" && <Agents />}
+        {tab === "overview" && <Overview isMobile={isMobile} />}
+        {tab === "usage" && <Usage isMobile={isMobile} />}
+        {tab === "minds" && <Minds onOpenTool={onOpenTool} isMobile={isMobile} />}
+        {tab === "agents" && <Agents isMobile={isMobile} />}
       </div>
     </div>
   );
