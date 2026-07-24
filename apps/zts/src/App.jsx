@@ -215,7 +215,7 @@ const TabIcon = ({ tab, color, size = 21 }) => (
 // Fixed bottom tab bar — replaces the top segmented control on mobile only.
 function BottomNav({ view, setView, tabs }) {
   return (
-    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", background: "rgba(11,15,26,0.92)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(0,0,0,0.4)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", background: "rgba(11,15,26,0.92)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)", borderTop: `1px solid ${T.line}`, boxShadow: "0 -2px 16px rgba(0,0,0,0.4)", paddingBottom: "min(env(safe-area-inset-bottom), 20px)" }}>
       {tabs.map(t => {
         const active = view === t;
         const color = active ? T.greenDeep : T.faint;
