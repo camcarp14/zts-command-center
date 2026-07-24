@@ -105,10 +105,10 @@ function BottomBar({ activeTab, onTab, inboundNew }) {
         {NAV_TABS.map(t => {
           const on = activeTab === t.key;
           return (
-            <button key={t.key} onClick={() => onTab(t)} title={t.label} aria-label={t.label} style={{ flex: 1, padding: "12px 0", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", position: "relative" }}>
-              <span style={{ fontSize: "20px", lineHeight: 1, color: on ? T.gold : T.faint }}>{t.icon}</span>
-              <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: on ? T.gold : "transparent" }} />
-              {t.key === "inbound" && inboundNew > 0 && <span style={{ position: "absolute", top: "6px", right: "50%", marginRight: "-18px", fontSize: "8px", fontWeight: 800, color: "#1A0A12", background: T.pink, borderRadius: T.rPill, padding: "1px 5px" }}>{inboundNew}</span>}
+            <button key={t.key} onClick={() => onTab(t)} title={t.label} aria-label={t.label} style={{ flex: 1, padding: "8px 2px 7px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3px", position: "relative" }}>
+              <span style={{ fontSize: "19px", lineHeight: 1, color: on ? T.gold : T.faint }}>{t.icon}</span>
+              <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: T.fontDisplay, color: on ? T.gold : T.faint }}>{t.label}</span>
+              {t.key === "inbound" && inboundNew > 0 && <span style={{ position: "absolute", top: "4px", right: "50%", marginRight: "-18px", fontSize: "8px", fontWeight: 800, color: "#1A0A12", background: T.pink, borderRadius: T.rPill, padding: "1px 5px" }}>{inboundNew}</span>}
             </button>
           );
         })}

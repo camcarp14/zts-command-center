@@ -117,12 +117,12 @@ a { color: var(--accent); text-decoration: none; }
 .nav button {
   flex: 1; max-width: 120px; min-height: 46px;
   background: none; border: none; border-radius: var(--r-sm);
-  color: var(--ink-3); font-size: 11px; font-weight: 600;
+  color: var(--ink-3); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   transition: color var(--dur-1) ease, transform var(--dur-1) var(--ease-out);
 }
 .nav button svg { width: 21px; height: 21px; }
-.nav button.on { color: var(--ink); }
+.nav button.on { color: var(--accent); }
 .nav button.on svg { color: var(--accent); }
 .nav button:active { transform: scale(0.94); }
 @media (min-width: 900px) {
