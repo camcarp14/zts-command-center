@@ -10,6 +10,19 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import Market from './pages/Market.jsx';
 import PrintView from './pages/PrintView.jsx';
 
+// Bottom-nav icons — minimal geometry in the same line style ZTS/Macro use, so
+// the mobile bar reads identically across tools. Hidden on desktop (the pill
+// group is label-only there).
+const RW_ICONS = {
+  board: <><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><line x1="9.5" y1="4.5" x2="9.5" y2="19.5" /><line x1="15" y1="4.5" x2="15" y2="19.5" /></>,
+  capture: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+  insights: <><polyline points="3.5,4 3.5,20 20,20" /><polyline points="7,15 11,11 14,13 19,7" /></>,
+  profile: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20c0-3.6 3-5.6 6.5-5.6s6.5 2 6.5 5.6" /></>,
+};
+const TabIco = ({ name }) => (
+  <svg className="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{RW_ICONS[name]}</svg>
+);
+
 function Rail() {
   const { session, signOut, discoveries } = useApp();
   const cls = ({ isActive }) => `nav-item${isActive ? ' active' : ''}`;
@@ -18,12 +31,12 @@ function Rail() {
     <nav className="rail">
       <div className="brand"><span className="dot" />RUNWAY</div>
       <div className="navgroup">
-        <NavLink to="/" end className={cls}>Board</NavLink>
+        <NavLink to="/" end className={cls}><TabIco name="board" /><span className="tab-label">Board</span></NavLink>
         <NavLink to="/capture" className={cls}>
-          Capture{queued > 0 && <span className="navcount" title={`${queued} discovered role${queued === 1 ? '' : 's'} to review`}>{queued}</span>}
+          <TabIco name="capture" /><span className="tab-label">Capture{queued > 0 && <span className="navcount" title={`${queued} discovered role${queued === 1 ? '' : 's'} to review`}>{queued}</span>}</span>
         </NavLink>
-        <NavLink to="/market" className={cls}>Insights</NavLink>
-        <NavLink to="/profile" className={cls}>Profile</NavLink>
+        <NavLink to="/market" className={cls}><TabIco name="insights" /><span className="tab-label">Insights</span></NavLink>
+        <NavLink to="/profile" className={cls}><TabIco name="profile" /><span className="tab-label">Profile</span></NavLink>
       </div>
       <div className="rail-foot">
         <div><kbd>⌘K</kbd> jump anywhere</div>

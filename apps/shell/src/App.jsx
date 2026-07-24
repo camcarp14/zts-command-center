@@ -173,7 +173,9 @@ function ComingSoon({ app }) {
 export default function Shell() {
   const session = useSession();
   const isMobile = useIsMobile();
-  const [active, setActive] = useState(() => (typeof localStorage !== "undefined" && localStorage.getItem("cc_active_app")) || "zts");
+  // Always open on ZTS — the Pentagon's home tool. (We still remember the last
+  // pick within a session for niceties, but every fresh load lands on ZTS.)
+  const [active, setActive] = useState("zts");
   const [systemOpen, setSystemOpen] = useState(false);
 
   const pick = useCallback((a) => {
