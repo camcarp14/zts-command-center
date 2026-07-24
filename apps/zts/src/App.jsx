@@ -1775,7 +1775,7 @@ export default function App({ embedded = false }) {
     if (data?.[0]) setArticles(prev => [data[0], ...prev]);
   };
 
-  const TABS = ["mission", "creators", "studio", "seo", "dna", "ops"];
+  const TABS = ["mission", "creators", "studio", "seo", "dna"];
 
   // Sliding tab indicator — measured from the active tab's DOM position so the
   // white pill glides between tabs instead of teleporting.
@@ -1796,7 +1796,7 @@ export default function App({ embedded = false }) {
   // render; the list is small and the handlers aren't stable refs anyway.
   const paletteActions = (() => {
     const acts = [];
-    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", dna: "DNA", ops: "Ops" };
+    const TAB_LABELS = { mission: "Mission", creators: "Creators", studio: "Studio", seo: "SEO", dna: "DNA" };
     TABS.forEach(t => acts.push({ id: `nav_${t}`, group: "Go to", icon: "→", label: TAB_LABELS[t] || t, run: () => setView(t) }));
     acts.push({ id: "act_short", group: "Create", icon: "✦", label: "New Short", sub: "Generate a full Shorts package", run: () => { signalCreate("studio"); setView("studio"); } });
     acts.push({ id: "act_article", group: "Create", icon: "✦", label: "New Article", sub: "Draft an SEO article into review", run: () => { signalCreate("seo"); setView("seo"); } });
@@ -1855,7 +1855,6 @@ export default function App({ embedded = false }) {
       {view === "studio" && <StudioView shorts={shorts} setShorts={setShorts} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.studio} onSignalConsumed={() => clearSignal("studio")} />}
       {view === "seo" && <SeoView articles={articles} setArticles={setArticles} onAddArticle={addArticle} isMobile={isMobile} loading={dataLoading} openSignal={createSignal.seo} onSignalConsumed={() => clearSignal("seo")} />}
       {view === "dna" && <DnaView creators={creators} shorts={shorts} articles={articles} onArticleDraft={addArticle} />}
-      {view === "ops" && <OpsView isMobile={isMobile} />}
       {isMobile && <BottomNav view={view} setView={setView} tabs={TABS} />}
     </div>
   );
