@@ -211,8 +211,10 @@ export default function Shell() {
     <div data-app={systemOpen ? "system" : active} data-theme={systemOpen ? "dark" : m.mode} style={{ ...(systemOpen ? PLATFORM_VARS : cssVars(active)), minHeight: "100vh", background: "var(--bg)", color: "var(--ink)", fontFamily: "var(--font-body)", transition: `background ${M.durSlow} ${M.easeStd}` }}>
       {/* Shell top bar — the ONE global chrome, themed to the active tool */}
       <div style={{
-        position: "sticky", top: 0, zIndex: 100, height: 52, display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: isMobile ? "0 12px" : "0 20px", borderBottom: "1px solid var(--border)",
+        position: "sticky", top: 0, zIndex: 100,
+        height: "calc(52px + env(safe-area-inset-top))", paddingTop: "env(safe-area-inset-top)",
+        paddingLeft: isMobile ? 12 : 20, paddingRight: isMobile ? 12 : 20,
+        display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)",
         background: "color-mix(in srgb, var(--bg) 82%, transparent)", backdropFilter: "blur(20px) saturate(140%)", WebkitBackdropFilter: "blur(20px) saturate(140%)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
