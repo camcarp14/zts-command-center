@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <defs>
-    <linearGradient id="pg" x1="4" y1="5" x2="28" y2="27" gradientUnits="userSpaceOnUse">
+    <linearGradient id="pg" x1="4" y1="6" x2="28" y2="28" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#8B7CFF"/>
       <stop offset="0.38" stop-color="#3ECF8E"/>
       <stop offset="0.72" stop-color="#C9A557"/>
@@ -9,5 +9,5 @@
   </defs>
   <rect width="32" height="32" rx="7" fill="#0B0F1A"/>
   <path fill-rule="evenodd" fill="url(#pg)"
-    d="M16 5.25 L27.29 13.46 L22.98 26.74 L9.02 26.74 L4.71 13.46 Z M16 11.1 L21.74 15.27 L19.54 22.01 L12.46 22.01 L10.26 15.27 Z"/>
+    d="M16 6.38 L27.29 14.59 L22.98 27.86 L9.02 27.86 L4.71 14.59 Z M16 12.23 L21.74 16.4 L19.54 23.14 L12.46 23.14 L10.26 16.4 Z"/>
 </svg>
